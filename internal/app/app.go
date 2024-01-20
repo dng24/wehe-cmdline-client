@@ -10,10 +10,21 @@ import (
 // cfg: the configurations to run Wehe with
 // Returns any errors
 func Run(cfg config.Config) error {
+    //history count
+
+
     tests, err := replay.ParseTestJSON(cfg.TestsConfigFile, cfg.TestNames, cfg.TestsDir)
     if err != nil {
         return err
     }
     _ = tests
+
+    //set up servers / certs
+
+    //flip coin
+
+    //run replays
+
+    //get results
     return nil
 }

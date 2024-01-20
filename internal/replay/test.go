@@ -103,6 +103,8 @@ func ParseTestJSON(testsConfigFile string, testNames []string, testsDir string) 
     var userRequestedTests []Test
     var validTestNames []string
     for _, test := range allTests {
+        //TODO: load replays at test run time to save memory; get rid of packet fields in Test struct; also maybe add istcp field to Test
+        // get only the tests that user asks for
         if (containsString(testNames, test.Image)) {
             test.OriginalPackets, err = parseReplayJSON(path.Join(testsDir, test.DataFile))
             if err != nil {
@@ -117,6 +119,7 @@ func ParseTestJSON(testsConfigFile string, testNames []string, testsDir string) 
         }
     }
 
+    // make sure there aren't any invalid test names that user entered
     err = checkValidTestNames(testNames, validTestNames)
     if err != nil {
         return nil, err
