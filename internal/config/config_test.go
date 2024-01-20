@@ -37,37 +37,37 @@ func TestGetString(t *testing.T) {
     val2 := ""
     section := setup(t, key1, val1, key2, val2, "filler", "filler")
 
-    // Test case 1: Key exists, value is not empty
-	result, err := getString(section, key1)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	expected := val1
-	if result != expected {
-		t.Errorf("Expected '%s', got '%s'", expected, result)
-	}
+    // Test key exists, value is not empty
+    result, err := getString(section, key1)
+    if err != nil {
+        t.Errorf("Unexpected error: %v", err)
+    }
+    expected := val1
+    if result != expected {
+        t.Errorf("Expected '%s', got '%s'", expected, result)
+    }
 
-	// Test case 2: Key does not exist
-	_, err = getString(section, "nonexistent_key")
-	if err == nil {
-		t.Error("Expected error for nonexistent key, but got none.")
-	} else {
-		expectedError := "error when getting key of section \"DEFAULT\": key \"nonexistent_key\" not exists"
-		if fmt.Sprint(err) != expectedError {
-			t.Errorf("Expected error '%s', got '%v'", expectedError, err)
-		}
-	}
+    // Test key does not exist
+    _, err = getString(section, "nonexistent_key")
+    if err == nil {
+        t.Error("Expected error for nonexistent key, but got none.")
+    } else {
+        expectedError := "error when getting key of section \"DEFAULT\": key \"nonexistent_key\" not exists"
+        if fmt.Sprint(err) != expectedError {
+            t.Errorf("Expected error '%s', got '%v'", expectedError, err)
+        }
+    }
 
-	// Test case 3: Key exists, value is empty
-	_, err = getString(section, key2)
-	if err == nil {
-		t.Error("Expected error for empty value, but got none.")
-	} else {
-		expectedError := fmt.Sprintf("No value read from %s key", key2)
-		if fmt.Sprint(err) != expectedError {
-			t.Errorf("Expected error '%s', got '%v'", expectedError, err)
-		}
-	}
+    // Test key exists, value is empty
+    _, err = getString(section, key2)
+    if err == nil {
+        t.Error("Expected error for empty value, but got none.")
+    } else {
+        expectedError := fmt.Sprintf("No value read from %s key", key2)
+        if fmt.Sprint(err) != expectedError {
+            t.Errorf("Expected error '%s', got '%v'", expectedError, err)
+        }
+    }
 }
 
 func TestGetLogLevel(t *testing.T) {
@@ -77,6 +77,7 @@ func TestGetLogLevel(t *testing.T) {
     val2 := "bad_log_level"
     section := setup(t, key1, val1, key2, val2, "filler", "filler")
 
+    // Test valid log level config
     result, err := getLogLevel(section, key1)
     if err != nil {
         t.Errorf("Unexpected error: %v", err)
@@ -86,6 +87,7 @@ func TestGetLogLevel(t *testing.T) {
         t.Errorf("Expected '%d', got '%d'", expected, result)
     }
 
+    // Test invalid log level config
     _, err = getLogLevel(section, key2)
     if err == nil {
         t.Error("Expected error for bad logging error, but got none.")
@@ -106,37 +108,37 @@ func TestGetInt(t *testing.T) {
     val3 := "110"
     section := setup(t, key1, val1, key2, val2, key3, val3)
 
-	// Test case 1: Key exists, value is an integer within the specified range
-	result, err := getInt(section, key1, 0, 65535)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	expected := 40000
-	if result != expected {
-		t.Errorf("Expected %d, got %d", expected, result)
-	}
+    // Test key exists, value is an integer within the specified range
+    result, err := getInt(section, key1, 0, 65535)
+    if err != nil {
+        t.Errorf("Unexpected error: %v", err)
+    }
+    expected := 40000
+    if result != expected {
+        t.Errorf("Expected %d, got %d", expected, result)
+    }
 
-	// Test case 2: Key exists, value is not an integer
-	_, err = getInt(section, key2, 0, 65535)
-	if err == nil {
-		t.Error("Expected error for non-integer value, but got none.")
-	} else {
-		expectedError := fmt.Sprintf("strconv.ParseInt: parsing \"asdf\": invalid syntax in %s key", key2)
-		if fmt.Sprint(err) != expectedError {
-			t.Errorf("Expected error '%s', got '%v'", expectedError, err)
-		}
-	}
+    // Test key exists, value is not an integer
+    _, err = getInt(section, key2, 0, 65535)
+    if err == nil {
+        t.Error("Expected error for non-integer value, but got none.")
+    } else {
+        expectedError := fmt.Sprintf("strconv.ParseInt: parsing \"asdf\": invalid syntax in %s key", key2)
+        if fmt.Sprint(err) != expectedError {
+            t.Errorf("Expected error '%s', got '%v'", expectedError, err)
+        }
+    }
 
-	// Test case 3: Key exists, value is an integer outside the specified range
-	_, err = getInt(section, key3, 0, 100)
-	if err == nil {
-		t.Error("Expected error for out-of-range value, but got none.")
-	} else {
-		expectedError := fmt.Sprintf("%s is not a valid number for %s. Must be between 0 and 100 inclusive.", val3, key3)
-		if fmt.Sprint(err) != expectedError {
-			t.Errorf("Expected error '%s', got '%v'", expectedError, err)
-		}
-	}
+    // Test key exists, value is an integer outside the specified range
+    _, err = getInt(section, key3, 0, 100)
+    if err == nil {
+        t.Error("Expected error for out-of-range value, but got none.")
+    } else {
+        expectedError := fmt.Sprintf("%s is not a valid number for %s. Must be between 0 and 100 inclusive.", val3, key3)
+        if fmt.Sprint(err) != expectedError {
+            t.Errorf("Expected error '%s', got '%v'", expectedError, err)
+        }
+    }
 }
 
 func TestGetBool(t *testing.T) {
@@ -148,6 +150,7 @@ func TestGetBool(t *testing.T) {
     val3 := "asdf"
     section := setup(t, key1, val1, key2, val2, key3, val3)
 
+    // Test with all lowercase config value
     result, err := getBool(section, key1)
     if err != nil {
         t.Errorf("Unexpected error: %v", err)
@@ -157,6 +160,7 @@ func TestGetBool(t *testing.T) {
         t.Errorf("Expected %t, got %t", expected, result)
     }
 
+    // Test with capitalized config value
     result, err = getBool(section, key2)
     if err != nil {
         t.Errorf("Unexpected error: %v", err)
@@ -166,6 +170,7 @@ func TestGetBool(t *testing.T) {
         t.Errorf("Expected %t, got %t", expected, result)
     }
 
+    // Test invalid value
     _, err = getBool(section, key3)
     if err == nil {
         t.Error("Expected error for non-boolean value, but got none.")
@@ -178,6 +183,7 @@ func TestGetBool(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
+    // Test test name parsing and config file parsing
     testNames := "test1,Test2 , TEST3"
     configFile := "testdata/test.ini"
     config, err := New(&testNames, &configFile)
@@ -211,6 +217,30 @@ func TestNew(t *testing.T) {
         t.Errorf("Expected wehe4.meddle.mobi, got %s", config.ServerDisplay)
     }
 
+    // Test no tests enetered on command line
+    testNames = ""
+    _, err = New(&testNames, &configFile)
+    if err == nil {
+        t.Error("Expected error for no test names, but got none.")
+    } else {
+        expectedError := "No test names entered."
+        if fmt.Sprint(err) != expectedError {
+            t.Errorf("Expected error '%s', got '%v'", expectedError, err)
+        }
+    }
+
+    testNames = ", , "
+    _, err = New(&testNames, &configFile)
+    if err == nil {
+        t.Error("Expected error for no test names, but got none.")
+    } else {
+        expectedError := "No test names entered."
+        if fmt.Sprint(err) != expectedError {
+            t.Errorf("Expected error '%s', got '%v'", expectedError, err)
+        }
+    }
+
+    // Test nonexistent configuration path errors.
     testNames = "test1"
     configFile = "nonexistent/path"
     _, err = New(&testNames, &configFile)

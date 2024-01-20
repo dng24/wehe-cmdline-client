@@ -1,3 +1,4 @@
+// Parses and provides configurations for the Wehe app.
 package config
 
 import (
@@ -7,7 +8,7 @@ import (
     "gopkg.in/ini.v1"
 )
 
-// Configurations for the wehe app
+// Configurations for the Wehe app
 // configs are read in from the command line and from a .ini config file
 type Config struct {
     // args from command line
@@ -27,7 +28,7 @@ type Config struct {
     AreaThreshold int
     KS2PValueThreshold int
     LogLevel int
-    AppsConfigFile string
+    TestsConfigFile string
     ServerCertFile string
     TestsDir string
     ResultsUIDir string
@@ -38,14 +39,25 @@ type Config struct {
 // Creates a new Config object
 // testNames: names of the tests to run, delimated by commas
 // configPath: path to the .ini config file
+// Returns a configuration struct or an error
 func New(testNames *string, configPath *string) (Config, error) {
+    // process command line arguments
     config := Config{}
-    config.TestNames = strings.Split(*testNames, ",")
-    for i, testName := range config.TestNames {
-        config.TestNames[i] = strings.TrimSpace(strings.ToLower(testName))
-        fmt.Println(config.TestNames[i])
+    testNamesSlice := strings.Split(*testNames, ",")
+    var nonEmptyStrings []string
+    for _, testName := range testNamesSlice {
+        s := strings.TrimSpace(strings.ToLower(testName))
+        if s != "" {
+            nonEmptyStrings = append(nonEmptyStrings, s)
+        }
+    }
+    if len(nonEmptyStrings) == 0 {
+        return config, fmt.Errorf("No test names entered.")
     }
 
+    config.TestNames = nonEmptyStrings
+
+    // process configs from the configuration file
     configFile, err := ini.Load(*configPath)
     if err != nil {
         return config, err
@@ -117,7 +129,7 @@ func New(testNames *string, configPath *string) (Config, error) {
         return config, err
     }
 
-    config.AppsConfigFile, err = getString(defaultSection, "apps_config_file")
+    config.TestsConfigFile, err = getString(defaultSection, "tests_config_file")
     if err != nil {
         return config, err
     }
@@ -150,7 +162,10 @@ func New(testNames *string, configPath *string) (Config, error) {
     return config, nil
 }
 
-// get a string from the config file
+// Gets a string from the config file.
+// section: the section of the ini file that contains the key
+// keyStr: the key
+// Returns the value of the key or an error
 func getString(section *ini.Section, keyStr string) (string, error) {
     key, err := section.GetKey(keyStr)
     if err != nil {
@@ -163,7 +178,10 @@ func getString(section *ini.Section, keyStr string) (string, error) {
     return val, nil
 }
 
-// get a log level from the config file
+// Gets a log level from the config file.
+// section: the section of the ini file that contains the key
+// keyStr: the key
+// Returns the integer value of the log level or an error
 func getLogLevel(section *ini.Section, keyStr string) (int, error) {
     val, err := getString(section, keyStr)
     if err != nil {
@@ -188,7 +206,12 @@ func getLogLevel(section *ini.Section, keyStr string) (int, error) {
     }
 }
 
-// get an int from the config file
+// Gets an integer from the config file.
+// section: the section of the ini file that contains the key
+// keyStr: the key
+// low: the lower bounds (inclusive) that the value should not go below
+// high: the upper bounds (inclusive) that the value should not go above
+// Returns the value or an error
 func getInt(section *ini.Section, keyStr string, low int, high int) (int, error) {
     key, err := section.GetKey(keyStr)
     if err != nil {
@@ -204,7 +227,10 @@ func getInt(section *ini.Section, keyStr string, low int, high int) (int, error)
     return val, nil
 }
 
-// get a boolean from the config file
+// Gets a boolean from the config file.
+// section: the section of the ini file that contains the key
+// keyStr: the key
+//Returns the value or an error
 func getBool(section *ini.Section, keyStr string) (bool, error) {
     key, err := section.GetKey(keyStr)
     if err != nil {

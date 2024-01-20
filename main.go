@@ -1,3 +1,4 @@
+// The main file of the Wehe app.
 package main
 
 import (
@@ -5,6 +6,7 @@ import (
     "fmt"
     "os"
 
+    "wehe-cmdline-client/internal/app"
     "wehe-cmdline-client/internal/config"
 )
 
@@ -42,12 +44,17 @@ func main() {
         os.Exit(1)
     }
 
+    // read in wehe configs
     config, err := config.New(testNames, configFile)
     if err != nil {
         fmt.Printf("Unable to process configuration file %s: %s\n", *configFile, err)
         os.Exit(1)
     }
-    _ = config
 
     // run the app
+    err = app.Run(config)
+    if err != nil {
+        fmt.Print(err)
+        os.Exit(1)
+    }
 }
