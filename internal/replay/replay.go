@@ -5,6 +5,6 @@ type Replay struct {
 
 }
 
-func (r Replay) Run {
+func (r Replay) Run() {
 
 }

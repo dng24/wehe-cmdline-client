@@ -217,7 +217,7 @@ func TestNew(t *testing.T) {
         t.Errorf("Expected wehe4.meddle.mobi, got %s", config.ServerDisplay)
     }
 
-    // Test no tests enetered on command line
+    // Test no tests entered on command line
     testNames = ""
     _, err = New(&testNames, &configFile)
     if err == nil {

@@ -5,7 +5,7 @@ import (
     "encoding/hex"
     "encoding/json"
     "fmt"
-    "io/ioutil"
+    "os"
     "path"
 )
 
@@ -89,7 +89,7 @@ type ReplayFilePacket struct {
 // testsDir: path to the directory containing all the test files
 // Returns a list of tests or an error
 func ParseTestJSON(testsConfigFile string, testNames []string, testsDir string) ([]Test, error) {
-    data, err := ioutil.ReadFile(testsConfigFile)
+    data, err := os.ReadFile(testsConfigFile)
     if err != nil {
         return nil, err
     }
@@ -132,7 +132,7 @@ func ParseTestJSON(testsConfigFile string, testNames []string, testsDir string) 
 // replayFile: file path to the test file
 // Returns a list of packets to send to the server that make up the test or an error
 func parseReplayJSON(replayFile string) ([]Packet, error) {
-    data, err := ioutil.ReadFile(replayFile)
+    data, err := os.ReadFile(replayFile)
     if err != nil {
         return nil, err
     }

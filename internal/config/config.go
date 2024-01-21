@@ -28,6 +28,7 @@ type Config struct {
     AreaThreshold int
     KS2PValueThreshold int
     LogLevel int
+    UserConfigFile string
     TestsConfigFile string
     ServerCertFile string
     TestsDir string
@@ -37,7 +38,7 @@ type Config struct {
 }
 
 // Creates a new Config object
-// testNames: names of the tests to run, delimated by commas
+// testNames: names of the tests to run, delimitated by commas
 // configPath: path to the .ini config file
 // Returns a configuration struct or an error
 func New(testNames *string, configPath *string) (Config, error) {
@@ -125,6 +126,11 @@ func New(testNames *string, configPath *string) (Config, error) {
     }
 
     config.LogLevel, err = getLogLevel(defaultSection, "log_level")
+    if err != nil {
+        return config, err
+    }
+
+    config.UserConfigFile, err = getString(defaultSection, "user_config_file")
     if err != nil {
         return config, err
     }

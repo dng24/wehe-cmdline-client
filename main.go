@@ -13,7 +13,7 @@ import (
 func main() {
     // parse command line arguments
     replaySubcommand := flag.NewFlagSet("replay", flag.ExitOnError)
-    testNames := replaySubcommand.String("n", "", "name of the tests to run, comma delimiated (required argument; see below for list of tests)")
+    testNames := replaySubcommand.String("n", "", "name of the tests to run, comma-delimitated (required argument; see below for list of tests)")
     configFile := replaySubcommand.String("c", "res/config/config.ini", "")
 
     //updateSubcommand := flag.NewFlagSet("update", flag.ExitOnError)
