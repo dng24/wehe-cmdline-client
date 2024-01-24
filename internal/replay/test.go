@@ -6,7 +6,6 @@ import (
     "encoding/json"
     "fmt"
     "os"
-    "path"
 )
 
 // All the information we need to run a test.
@@ -17,8 +16,7 @@ type Test struct {
     DataFile string `json:"datafile"` // filename of the original replay
     RandomDataFile string `json:"randomdatafile"` // filename of the random replay
 
-    OriginalPackets []Packet // the packets of the original replay to send to server
-    RandomPackets []Packet // the packets of the random replay to send to server
+    IsTCP bool // true if test sends TCP packets; false if it sends UDP packets
     OriginalThroughput float64 // average throughput of the original replay
     RandomThroughput float64 // average throughput of random replay
     HistoryCount int // the ID for the replay for this specific user
@@ -85,10 +83,10 @@ type ReplayFilePacket struct {
 
 // Loads the tests from disk.
 // testsConfigFile: the configuration file name containing information about all the tests
-// testNames: the names of the tests that the user would like to run. Test names should match Test.Image
-// testsDir: path to the directory containing all the test files
+// testNames: the names of the tests that the user would like to run. Test names should match
+//            Test.Image
 // Returns a list of tests or an error
-func ParseTestJSON(testsConfigFile string, testNames []string, testsDir string) ([]Test, error) {
+func ParseTestJSON(testsConfigFile string, testNames []string) ([]*Test, error) {
     data, err := os.ReadFile(testsConfigFile)
     if err != nil {
         return nil, err
@@ -100,21 +98,11 @@ func ParseTestJSON(testsConfigFile string, testNames []string, testsDir string) 
         return nil, err
     }
 
-    var userRequestedTests []Test
+    var userRequestedTests []*Test
     var validTestNames []string
     for _, test := range allTests {
-        //TODO: load replays at test run time to save memory; get rid of packet fields in Test struct; also maybe add istcp field to Test
-        // get only the tests that user asks for
         if (containsString(testNames, test.Image)) {
-            test.OriginalPackets, err = parseReplayJSON(path.Join(testsDir, test.DataFile))
-            if err != nil {
-                return nil, err
-            }
-            test.RandomPackets, err = parseReplayJSON(path.Join(testsDir, test.RandomDataFile))
-            if err != nil {
-                return nil, err
-            }
-            userRequestedTests = append(userRequestedTests, test)
+            userRequestedTests = append(userRequestedTests, &test)
             validTestNames = append(validTestNames, test.Image)
         }
     }
@@ -128,19 +116,21 @@ func ParseTestJSON(testsConfigFile string, testNames []string, testsDir string) 
     return userRequestedTests, err
 }
 
+// TODO: refactor so that this returns a struct that contains []packet, isTCP, and replay name
 // Parses a test file.
 // replayFile: file path to the test file
-// Returns a list of packets to send to the server that make up the test or an error
-func parseReplayJSON(replayFile string) ([]Packet, error) {
+// Returns a list of packets to send to the server that make up the test and true if packets are
+//     TCP, false if packets are UDP, or an error
+func ParseReplayJSON(replayFile string) ([]Packet, bool, error) {
     data, err := os.ReadFile(replayFile)
     if err != nil {
-        return nil, err
+        return nil, false, err
     }
 
     var jsonData []json.RawMessage
     err = json.Unmarshal(data, &jsonData)
     if err != nil {
-        return nil, err
+        return nil, false, err
     }
 
     //TODO: can we get rid of udp client ports, tcp csps, and replay name in tests files and just keep the Q - would make json parsing a lot simplier; can get rid of block below
@@ -154,8 +144,10 @@ func parseReplayJSON(replayFile string) ([]Packet, error) {
 	}
 
     var packets []Packet
+    var isTCP bool
     if replayFilePackets[0].ResponseLength != nil {
         // make the TCP packets to be sent to the server
+        isTCP = true
         for _, replayFilePacket := range replayFilePackets {
             //TODO: see if test files can replace null with "" in response_hash field; if so, this code is not needed
             var hash string
@@ -167,23 +159,24 @@ func parseReplayJSON(replayFile string) ([]Packet, error) {
 
             tcpPacket, err := newTCPPacket(replayFilePacket.CSPair, replayFilePacket.Timestamp, replayFilePacket.Payload, *replayFilePacket.ResponseLength, hash)
             if err != nil {
-                return nil, err
+                return nil, false, err
             }
 
-            packets = append(packets, tcpPacket)
+            packets = append(packets, &tcpPacket)
         }
     } else {
         // make the UDP packets to be sent to the server
+        isTCP = false
         for _, replayFilePacket := range replayFilePackets {
             udpPacket, err := newUDPPacket(replayFilePacket.CSPair, replayFilePacket.Timestamp, replayFilePacket.Payload, *replayFilePacket.End)
             if err != nil {
-                return nil, err
+                return nil, false, err
             }
 
-            packets = append(packets, udpPacket)
+            packets = append(packets, &udpPacket)
         }
     }
-    return packets, nil
+    return packets, isTCP, nil
 }
 
 // Checks if slice contains a string.

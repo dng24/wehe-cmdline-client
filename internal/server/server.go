@@ -72,6 +72,17 @@ func HTTPGet(url string) ([]byte, error) {
     return body, nil
 }
 
+// Get the client's public IP.
+// hostname: hostname of the server
+// Returns client's public IP or an error
+func GetClientPublicIP(hostname string) (string, error) {
+    resp, err := HTTPGet(fmt.Sprintf(publicIPURL, hostname))
+    if err != nil {
+        return "", err
+    }
+    return string(resp), nil
+}
+
 //TODO: move below to new mlab file if this file gets too long
 
 // Determines if MLab servers should be used for the tests.

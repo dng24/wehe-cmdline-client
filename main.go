@@ -54,7 +54,7 @@ func main() {
     // run the app
     err = app.Run(config)
     if err != nil {
-        fmt.Print(err)
+        fmt.Println(err)
         os.Exit(1)
     }
     println("it worked :D")

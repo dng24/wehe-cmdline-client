@@ -5,6 +5,7 @@ import (
     "bufio"
     "fmt"
     "math/rand"
+    "path"
     "os"
     "strconv"
     "strings"
@@ -22,6 +23,13 @@ const (
     cmdlineUserIDFirstChar = "@"
 )
 
+type ReplayType int
+
+const (
+    Original ReplayType = iota
+    Random
+)
+
 // Run the Wehe app.
 // cfg: the configurations to run Wehe with
 // Returns any errors
@@ -30,11 +38,10 @@ func Run(cfg config.Config) error {
     userID, testID := readUserConfig(cfg.UserConfigFile)
     fmt.Println(userID, testID)
 
-    tests, err := replay.ParseTestJSON(cfg.TestsConfigFile, cfg.TestNames, cfg.TestsDir)
+    tests, err := replay.ParseTestJSON(cfg.TestsConfigFile, cfg.TestNames)
     if err != nil {
         return err
     }
-    _ = tests
 
     //set up servers / certs
     var servers []*server.Server
@@ -92,14 +99,62 @@ func Run(cfg config.Config) error {
     }
     //gen certs, maybe can do it outside of loop
 
+    //get public ip
+    clientPublicIP, err := server.GetClientPublicIP(servers[0].HostName)
+    if err != nil {
+        return err
+    }
+    println(clientPublicIP)
+
     //flip coin
+    replayOrder := generateReplayOrder()
 
     //run replays
+    for _, test := range tests {
+        for _, replayType := range replayOrder {
+            packets, err := getReplayPackets(test, replayType, cfg.TestsDir)
+            if err != nil {
+                return err
+            }
+            _ = packets
+        }
+    }
 
     //get results
 
     cleanUp(servers)
     return nil
+}
+
+// Randomly determines whether the original or random replay will be run first.
+// Returns the types of replays in the order that they will be run
+func generateReplayOrder() [2]ReplayType {
+    rand.Seed(time.Now().UnixNano())
+    if (rand.Intn(2) == 0) {
+        return [2]ReplayType{Original, Random}
+    } else {
+        return [2]ReplayType{Random, Original}
+    }
+}
+
+// Gets the packets for a given replay. This function also sets the IsTCP field for Test.
+// test: the test associated with the packets
+// replayType: the type of replay associated with the packets
+// testDir: the directory in which the replay files are located in
+// Returns a list of packets for the replay
+func getReplayPackets(test *replay.Test, replayType ReplayType, testDir string) ([]replay.Packet, error) {
+    var dataFile string
+    if replayType == Original {
+        dataFile = test.DataFile
+    } else {
+        dataFile = test.RandomDataFile
+    }
+    packets, isTCP, err := replay.ParseReplayJSON(path.Join(testDir, dataFile))
+    if err != nil {
+        return nil, err
+    }
+    test.IsTCP = isTCP
+    return packets, nil
 }
 
 func cleanUp(servers []*server.Server) {
