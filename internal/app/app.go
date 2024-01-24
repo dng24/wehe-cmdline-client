@@ -1,4 +1,4 @@
-// Provides the main logic for Wehe.
+// Provides the main logic for the Wehe command line client.
 package app
 
 import (
@@ -30,7 +30,7 @@ const (
     Random
 )
 
-// Run the Wehe app.
+// Run the Wehe command line client.
 // cfg: the configurations to run Wehe with
 // Returns any errors
 func Run(cfg config.Config) error {

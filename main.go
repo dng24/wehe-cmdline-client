@@ -1,4 +1,4 @@
-// The main file of the Wehe app.
+// The main file of the Wehe command line client.
 package main
 
 import (

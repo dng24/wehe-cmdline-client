@@ -1,4 +1,4 @@
-// Parses and provides configurations for the Wehe app.
+// Parses and provides configurations for the Wehe command line client.
 package config
 
 import (
@@ -8,7 +8,7 @@ import (
     "gopkg.in/ini.v1"
 )
 
-// Configurations for the Wehe app
+// Configurations for the Wehe command line client
 // configs are read in from the command line and from a .ini config file
 type Config struct {
     // args from command line
@@ -34,7 +34,7 @@ type Config struct {
     InfoFile string
 }
 
-// Creates a new Config object
+// Creates a new Config object.
 // testNames: names of the tests to run, delimitated by commas
 // configPath: path to the .ini config file
 // Returns a configuration struct or an error
