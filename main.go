@@ -57,4 +57,5 @@ func main() {
         fmt.Print(err)
         os.Exit(1)
     }
+    println("it worked :D")
 }

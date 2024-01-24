@@ -7,11 +7,13 @@ import (
     "math/rand"
     "os"
     "strconv"
+    "strings"
     "time"
     "unicode"
 
     "wehe-cmdline-client/internal/config"
     "wehe-cmdline-client/internal/replay"
+    "wehe-cmdline-client/internal/server"
 )
 
 const (
@@ -35,13 +37,75 @@ func Run(cfg config.Config) error {
     _ = tests
 
     //set up servers / certs
+    var servers []*server.Server
+    useMLab, err := server.UseMLab(cfg.ServerDisplay)
+    if err != nil {
+        return err
+    }
+    if useMLab {
+        // We currently use MLab if the hostname is wehe4.meddle.mobi or if the client is using
+        // IPv6. Steps to connect:
+        // 1) GET request to MLab site to get JSON of MLab servers that can be connected to.
+        // 2) Get the hostname (machine) and websocket authentication URL
+        //    (wss://:4443/v0/envelope/access) of a server. The URL is valid for two minutes.
+        // 3) Connect to the websocket URL and have connection open for duration of test. The
+        //    websocket connection is valid for two minutes.
+        // 4) Connect to the SideChannel using the hostname returned by the GET request.
+        mlabServers, err := server.GetMLabServers()
+        if err != nil {
+            return err
+        }
+        var mlabErrors []string
+        for _, mlabServer := range mlabServers {
+            if len(servers) == cfg.NumServers {
+                // we have the desired number of servers
+                break
+            }
+
+            srv, err := server.New(mlabServer.Hostname)
+            if err != nil {
+                mlabErrors = append(mlabErrors, fmt.Sprintf("Error initializing server to %s: %v", mlabServer.Hostname, err))
+                continue
+            }
+            err = srv.OpenWebsocket(mlabServer.AccessToken)
+            if err != nil {
+                mlabErrors = append(mlabErrors, fmt.Sprintf("Error connecting to %s websocket: %v", mlabServer.Hostname, err))
+                continue
+            }
+            servers = append(servers, srv)
+        }
+        // In the app, if MLab fails to connect, we fall back to the EC2 server. However, because
+        // the command line client is mainly used to test connectivity to MLab, we return an error
+        // instead.
+        if len(servers) != cfg.NumServers {
+            return fmt.Errorf("Initialized only %d/%d MLab servers. Errors:\n%s\n", len(servers), cfg.NumServers, strings.Join(mlabErrors, "\n"))
+        }
+    } else {
+        if cfg.NumServers > 1 {
+            return fmt.Errorf("Must connect to MLab (%s) to run more than one concurrent test. Currently connected to %s.\n", server.UseMLabHostname, cfg.ServerDisplay)
+        }
+        srv, err := server.New(cfg.ServerDisplay)
+        if err != nil {
+            return err
+        }
+        servers = append(servers, srv)
+    }
+    //gen certs, maybe can do it outside of loop
 
     //flip coin
 
     //run replays
 
     //get results
+
+    cleanUp(servers)
     return nil
+}
+
+func cleanUp(servers []*server.Server) {
+    for _, server := range servers {
+        server.MLabWebsocket.Close()
+    }
 }
 
 

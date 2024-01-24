@@ -16,9 +16,6 @@ type Config struct {
 
     // args from ini config file
     ServerDisplay string
-    SideChannelPort int
-    ResultPort int
-    MLabServersURL string
     NumServers int
     ExtraString string
     SendMobileStats bool
@@ -70,21 +67,7 @@ func New(testNames *string, configPath *string) (Config, error) {
         return config, err
     }
 
-    config.SideChannelPort, err = getInt(defaultSection, "side_channel_port", 0, 65535)
-    if err != nil {
-        return config, err
-    }
-
-    config.ResultPort, err = getInt(defaultSection, "result_port", 0, 65535)
-    if err != nil {
-        return config, err
-    }
-
-    config.MLabServersURL, err = getString(defaultSection, "mlab_servers_url")
-    if err != nil {
-        return config, err
-    }
-
+    // we are limited to 4 servers because MLab returns only 4 servers to choose from
     config.NumServers, err = getInt(defaultSection, "num_servers", 1, 4)
     if err != nil {
         return config, err
