@@ -14,6 +14,8 @@ const (
     Version = "4.0"
 )
 
+
+//TODO: handle interrupt cleanup and check whether client is too old
 func main() {
     // parse command line arguments
     replaySubcommand := flag.NewFlagSet("replay", flag.ExitOnError)
