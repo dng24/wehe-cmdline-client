@@ -235,6 +235,14 @@ func ParseReplayJSON(replayFile string) (ReplayInfo, error) {
             return ReplayInfo{}, err
         }
         csPair, err = newCSPair(csPairs[0]) // we currently only have 1 cs pair
+        if err != nil {
+            return ReplayInfo{}, err
+        }
+    } else {
+        csPair, err = newCSPair(packets[0].(*UDPPacket).CSPair)
+        if err != nil {
+            return ReplayInfo{}, err
+        }
     }
     replayName := strings.Split(string(jsonData[3]), "\"")[1]
 

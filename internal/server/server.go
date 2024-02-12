@@ -58,37 +58,6 @@ func (srv *Server) OpenWebsocket(websocketURL string) error {
     return nil
 }
 
-// HTTP GET.
-// url: the URL to GET
-// Returns the body or an error
-func HTTPGet(url string) ([]byte, error) {
-    resp, err := http.Get(url)
-    if err != nil {
-        return nil, err
-    }
-    body, err := io.ReadAll(resp.Body)
-    resp.Body.Close()
-    if resp.StatusCode > 299 {
-        return nil, fmt.Errorf("GET Response failed with status code: %d and error:\n%s\n", resp.StatusCode, body)
-    }
-    if err != nil {
-        return nil, err
-    }
-    return body, nil
-}
-
-// Get the client's public IP.
-// hostname: hostname of the server
-// port: port number to make public IP request
-// Returns client's public IP or an error
-func GetClientPublicIP(hostname string, port int) (string, error) {
-    resp, err := HTTPGet(fmt.Sprintf(publicIPURL, hostname, port))
-    if err != nil {
-        return "", err
-    }
-    return string(resp), nil
-}
-
 //TODO: move below to new mlab file if this file gets too long
 
 // Determines if MLab servers should be used for the tests.
@@ -201,13 +170,9 @@ func (srv *Server) ConnectToSideChannel(id int) error {
 // clientVersion: client version of Wehe
 // Returns any errors
 func (srv *Server) SendID(isTCP bool, replayPort int, userID string, replayID int, replayName string, testID int, isLastReplay bool, clientVersion string) error {
-    publicIP := "127.0.0.1"
-    var err error
-    if isTCP {
-        publicIP, err = GetClientPublicIP(srv.HostName, replayPort)
-        if err != nil {
-            return err
-        }
+    publicIP, err := getClientPublicIP(srv.HostName, replayPort, isTCP)
+    if err != nil {
+        return err
     }
 
     err = srv.SideChannel.SendID(userID, replayID, replayName, srv.NumMLabTries, testID, isLastReplay, publicIP, clientVersion)
@@ -217,6 +182,65 @@ func (srv *Server) SendID(isTCP bool, replayPort int, userID string, replayID in
 
     return nil
 }
+
+// HTTP GET.
+// url: the URL to GET
+// Returns the body or an error
+func HTTPGet(url string) ([]byte, error) {
+    resp, err := http.Get(url)
+    if err != nil {
+        return nil, err
+    }
+    body, err := io.ReadAll(resp.Body)
+    resp.Body.Close()
+    if resp.StatusCode > 299 {
+        return nil, fmt.Errorf("GET Response failed with status code: %d and error:\n%s\n", resp.StatusCode, body)
+    }
+    if err != nil {
+        return nil, err
+    }
+    return body, nil
+}
+
+// Get the client's public IP.
+// hostname: hostname of the server
+// port: port number to make public IP request
+// isTCP: true if test is TCP; false if test is UDP
+// Returns client's public IP or an error
+func getClientPublicIP(hostname string, port int, isTCP bool) (string, error) {
+    if isTCP {
+        resp, err := HTTPGet(fmt.Sprintf(publicIPURL, hostname, port))
+        if err != nil {
+            return "", err
+        }
+        return string(resp), nil
+    } else {
+        udpServer, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", hostname, port))
+        if err != nil {
+            return "", err
+        }
+
+        conn, err := net.DialUDP("udp", nil, udpServer)
+        if err != nil {
+            return "", err
+        }
+        defer conn.Close()
+
+        _, err = conn.Write([]byte("WHATSMYIPMAN"))
+        if err != nil {
+            return "", err
+        }
+
+        resp := make([]byte, 256)
+        _, err = conn.Read(resp)
+        if err != nil {
+            return "", err
+        }
+
+        return string(resp), nil
+    }
+}
+
 
 func (srv *Server) CleanUp() {
     srv.SideChannel.CleanUp()

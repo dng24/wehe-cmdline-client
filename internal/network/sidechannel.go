@@ -50,6 +50,7 @@ func (sideChannel SideChannel) SendID(userID string, replayID int, replayName st
 
 
     message := strings.Join([]string{userID, replayIDString, replayName, numMLabTriesString, testIDString, isLastReplayString, publicIP, clientVersion}, ";")
+    fmt.Println(message)
     _, err := sideChannel.conn.Write([]byte(message))
     if err != nil {
         return err
