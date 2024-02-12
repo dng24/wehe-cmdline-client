@@ -6,6 +6,8 @@ import (
     "encoding/json"
     "fmt"
     "os"
+    "strconv"
+    "strings"
 )
 
 // All the information we need to run a test.
@@ -16,10 +18,17 @@ type Test struct {
     DataFile string `json:"datafile"` // filename of the original replay
     RandomDataFile string `json:"randomdatafile"` // filename of the random replay
 
-    IsTCP bool // true if test sends TCP packets; false if it sends UDP packets
+    //IsTCP bool // true if test sends TCP packets; false if it sends UDP packets
     OriginalThroughput float64 // average throughput of the original replay
     RandomThroughput float64 // average throughput of random replay
-    HistoryCount int // the ID for the replay for this specific user
+    TestID int // the ID for the replay for this specific user
+}
+
+type ReplayInfo struct {
+    Packets []Packet
+    CSPair CSPair
+    ReplayName string
+    IsTCP bool
 }
 
 // Either a TCPPacket or UDPPacket.
@@ -55,7 +64,7 @@ type UDPPacket struct {
     CSPair string // the client & server of original packet capture, in the form {client_IP}.{client_port}-{server_IP}.{server_port}
     Timestamp float64 // time since the start of the replay that this packet should be sent
     Payload []byte // the bytes to send to the server
-    End bool
+    End bool // ???
 }
 
 func newUDPPacket(csPair string, timestamp float64, payload string, end bool) (UDPPacket, error) {
@@ -81,6 +90,45 @@ type ReplayFilePacket struct {
     End *bool `json:"end"` // ???
 }
 
+// Represents a client-server pair. Every replay file recorded has a CSPair.
+type CSPair struct {
+    ClientIP string // client IP of the replay file
+    ClientPort int // client port of the replay file
+    ServerIP string // server IP of the replay file
+    ServerPort int // server port of the replay file
+}
+
+// Converts a string CSPair into a CSPair struct.
+// csPair: a CSPair string in the format <client_ip>.<client_port>-<server_ip>.<server_port>
+// Returns a CSPair or any errors
+func newCSPair(csPair string) (CSPair, error) {
+    clientServer := strings.Split(csPair, "-")
+    if len(clientServer) != 2 {
+        return CSPair{}, fmt.Errorf("CSPair '%s' is invalid. Should be in format <client_ip>.<client_port>-<server_ip>.<server_port>", csPair)
+    }
+
+    lastDotIndex := strings.LastIndex(clientServer[0], ".")
+	clientIP := clientServer[0][:lastDotIndex]
+    clientPort, err := strconv.Atoi(clientServer[0][lastDotIndex + 1:])
+	if err != nil {
+        return CSPair{}, err
+    }
+
+    lastDotIndex = strings.LastIndex(clientServer[1], ".")
+    serverIP := clientServer[1][:lastDotIndex]
+    serverPort, err := strconv.Atoi(clientServer[1][lastDotIndex + 1:])
+    if err != nil {
+        return CSPair{}, err
+    }
+
+    return CSPair{
+        ClientIP: clientIP,
+        ClientPort: clientPort,
+        ServerIP: serverIP,
+        ServerPort: serverPort,
+    }, nil
+}
+
 // Loads the tests from disk.
 // testsConfigFile: the configuration file name containing information about all the tests
 // testNames: the names of the tests that the user would like to run. Test names should match
@@ -102,7 +150,8 @@ func ParseTestJSON(testsConfigFile string, testNames []string) ([]*Test, error) 
     var validTestNames []string
     for _, test := range allTests {
         if (containsString(testNames, test.Image)) {
-            userRequestedTests = append(userRequestedTests, &test)
+            tmpTest := test
+            userRequestedTests = append(userRequestedTests, &tmpTest)
             validTestNames = append(validTestNames, test.Image)
         }
     }
@@ -121,16 +170,16 @@ func ParseTestJSON(testsConfigFile string, testNames []string) ([]*Test, error) 
 // replayFile: file path to the test file
 // Returns a list of packets to send to the server that make up the test and true if packets are
 //     TCP, false if packets are UDP, or an error
-func ParseReplayJSON(replayFile string) ([]Packet, bool, error) {
+func ParseReplayJSON(replayFile string) (ReplayInfo, error) {
     data, err := os.ReadFile(replayFile)
     if err != nil {
-        return nil, false, err
+        return ReplayInfo{}, err
     }
 
     var jsonData []json.RawMessage
     err = json.Unmarshal(data, &jsonData)
     if err != nil {
-        return nil, false, err
+        return ReplayInfo{}, err
     }
 
     //TODO: can we get rid of udp client ports, tcp csps, and replay name in tests files and just keep the Q - would make json parsing a lot simplier; can get rid of block below
@@ -139,7 +188,7 @@ func ParseReplayJSON(replayFile string) ([]Packet, bool, error) {
     if len(jsonData) > 0 {
 		err := json.Unmarshal(jsonData[0], &replayFilePackets)
 		if err != nil {
-			fmt.Println("Error unmarshalling JSON array:", err)
+			return ReplayInfo{}, err
 		}
 	}
 
@@ -159,7 +208,7 @@ func ParseReplayJSON(replayFile string) ([]Packet, bool, error) {
 
             tcpPacket, err := newTCPPacket(replayFilePacket.CSPair, replayFilePacket.Timestamp, replayFilePacket.Payload, *replayFilePacket.ResponseLength, hash)
             if err != nil {
-                return nil, false, err
+                return ReplayInfo{}, err
             }
 
             packets = append(packets, &tcpPacket)
@@ -170,13 +219,31 @@ func ParseReplayJSON(replayFile string) ([]Packet, bool, error) {
         for _, replayFilePacket := range replayFilePackets {
             udpPacket, err := newUDPPacket(replayFilePacket.CSPair, replayFilePacket.Timestamp, replayFilePacket.Payload, *replayFilePacket.End)
             if err != nil {
-                return nil, false, err
+                return ReplayInfo{}, err
             }
 
             packets = append(packets, &udpPacket)
         }
     }
-    return packets, isTCP, nil
+
+    //TODO: also very sketch, fix test file format, as mentioned above
+    var csPair CSPair
+    if isTCP {
+        var csPairs []string
+        err := json.Unmarshal(jsonData[2], &csPairs)
+        if err != nil {
+            return ReplayInfo{}, err
+        }
+        csPair, err = newCSPair(csPairs[0]) // we currently only have 1 cs pair
+    }
+    replayName := strings.Split(string(jsonData[3]), "\"")[1]
+
+    return ReplayInfo{
+        Packets: packets,
+        CSPair: csPair,
+        ReplayName: replayName,
+        IsTCP: isTCP,
+    }, nil
 }
 
 // Checks if slice contains a string.

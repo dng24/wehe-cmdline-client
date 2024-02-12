@@ -8,25 +8,30 @@ import (
     "net/http"
 
     "github.com/gorilla/websocket"
+
+    "wehe-cmdline-client/internal/network"
 )
 
 const (
-    UseMLabHostname = "wehe4.meddle.mobi"
-    sideChannelPort = 55556
+    UseMLabHostname = "wehe4.meddle.mobi" // hostname used to request MLab server
     resultsURL = "https://%s:56566/Results"
-    publicIPURL = "http://%s/WHATSMYIPMAN"
-    mlabServersURL = "https://locate.measurementlab.net/v2/nearest/wehe/replay"
+    publicIPURL = "http://%s:%d/WHATSMYIPMAN"
+    mlabServersURL = "https://locate.measurementlab.net/v2/nearest/wehe/replay" // used to find which MLab server to use
 )
 
 type Server struct {
     HostName string  // hostname of the server
     IP string // ip of the server
-    SideChannelPort int // side channel port number
+    SideChannel network.SideChannel // Side Channel connection
     ResultsURL string // URL to analyze and get results
     PublicIPURL string // URL for client to get its public IP
     MLabWebsocket *websocket.Conn // websocket connection for MLab
+    NumMLabTries int // number of tries before successful connection to MLab server
 }
 
+// Creates a new Server struct.
+// hostname: hostname of the server to connect to
+// Returns a new Server or any errors
 func New(hostname string) (*Server, error) {
     ips, err := net.LookupHost(hostname) // do DNS lookup
     if err != nil {
@@ -35,9 +40,9 @@ func New(hostname string) (*Server, error) {
     return &Server{
         HostName: hostname,
         IP: ips[0],
-        SideChannelPort: sideChannelPort,
         ResultsURL: fmt.Sprintf(resultsURL, ips[0]),
         PublicIPURL: fmt.Sprintf(publicIPURL, ips[0]),
+        NumMLabTries: 0,
     }, nil
 }
 
@@ -74,9 +79,10 @@ func HTTPGet(url string) ([]byte, error) {
 
 // Get the client's public IP.
 // hostname: hostname of the server
+// port: port number to make public IP request
 // Returns client's public IP or an error
-func GetClientPublicIP(hostname string) (string, error) {
-    resp, err := HTTPGet(fmt.Sprintf(publicIPURL, hostname))
+func GetClientPublicIP(hostname string, port int) (string, error) {
+    resp, err := HTTPGet(fmt.Sprintf(publicIPURL, hostname, port))
     if err != nil {
         return "", err
     }
@@ -171,4 +177,55 @@ func GetMLabServers() ([]MLabServer, error) {
         mlabServers = append(mlabServers, mlabServer)
     }
     return mlabServers, nil
+}
+
+// Connects to the side channel of the server.
+// id: the ID number to assign the side channel instance
+// Returns any errors
+func (srv *Server) ConnectToSideChannel(id int) error {
+    sideChannel, err := network.NewSideChannel(id, srv.IP)
+    if err != nil {
+        return err
+    }
+    srv.SideChannel = sideChannel
+    return nil
+}
+
+// Tells the server that client wants to run a replay.
+// isTCP: true if this replay uses TCP; false if it uses UDP
+// replayPort: the server port number that the client will send packets to for this replay
+// userID: the unique identifier for this user
+// replayID: indicates whether this is the original or random replay
+// testID: the ID of the test for this specific user
+// isLastReplay: true if this replay is the last one in the test to run; false otherwise
+// clientVersion: client version of Wehe
+// Returns any errors
+func (srv *Server) SendID(isTCP bool, replayPort int, userID string, replayID int, replayName string, testID int, isLastReplay bool, clientVersion string) error {
+    publicIP := "127.0.0.1"
+    var err error
+    if isTCP {
+        publicIP, err = GetClientPublicIP(srv.HostName, replayPort)
+        if err != nil {
+            return err
+        }
+    }
+
+    err = srv.SideChannel.SendID(userID, replayID, replayName, srv.NumMLabTries, testID, isLastReplay, publicIP, clientVersion)
+    if err != nil {
+        return err
+    }
+
+    return nil
+}
+
+func (srv *Server) CleanUp() {
+    srv.SideChannel.CleanUp()
+    fmt.Println("CLEANING UP server")
+    var err error
+    if srv.MLabWebsocket != nil {
+        err = srv.MLabWebsocket.Close()
+    }
+    if err != nil {
+        fmt.Printf("Error while cleaning up server: %s\n", err)
+    }
 }

@@ -5,7 +5,6 @@ import (
     "bufio"
     "fmt"
     "math/rand"
-    "path"
     "os"
     "strconv"
     "strings"
@@ -23,17 +22,11 @@ const (
     cmdlineUserIDFirstChar = "@"
 )
 
-type ReplayType int
-
-const (
-    Original ReplayType = iota
-    Random
-)
-
 // Run the Wehe command line client.
 // cfg: the configurations to run Wehe with
+// version: version number of Wehe
 // Returns any errors
-func Run(cfg config.Config) error {
+func Run(cfg config.Config, version string) error {
     //history count
     userID, testID := readUserConfig(cfg.UserConfigFile)
     fmt.Println(userID, testID)
@@ -63,22 +56,29 @@ func Run(cfg config.Config) error {
             return err
         }
         var mlabErrors []string
+        numTries := 0 // number tries before successful connection to an MLab server
         for _, mlabServer := range mlabServers {
             if len(servers) == cfg.NumServers {
                 // we have the desired number of servers
                 break
             }
 
+            numTries += 1
+
             srv, err := server.New(mlabServer.Hostname)
             if err != nil {
                 mlabErrors = append(mlabErrors, fmt.Sprintf("Error initializing server to %s: %v", mlabServer.Hostname, err))
                 continue
             }
+            defer srv.CleanUp()
+
             err = srv.OpenWebsocket(mlabServer.AccessToken)
             if err != nil {
                 mlabErrors = append(mlabErrors, fmt.Sprintf("Error connecting to %s websocket: %v", mlabServer.Hostname, err))
                 continue
             }
+            srv.NumMLabTries = numTries
+            numTries = 0
             servers = append(servers, srv)
         }
         // In the app, if MLab fails to connect, we fall back to the EC2 server. However, because
@@ -99,70 +99,38 @@ func Run(cfg config.Config) error {
     }
     //gen certs, maybe can do it outside of loop
 
-    //get public ip
-    clientPublicIP, err := server.GetClientPublicIP(servers[0].HostName)
-    if err != nil {
-        return err
-    }
-    println(clientPublicIP)
-
     //flip coin
     replayOrder := generateReplayOrder()
 
     //run replays
     for _, test := range tests {
-        for _, replayType := range replayOrder {
-            packets, err := getReplayPackets(test, replayType, cfg.TestsDir)
+        testID += 1
+        test.TestID = testID
+        for i, replayType := range replayOrder {
+            isLastReplay := i != 0
+            r := replay.NewReplay(test, replayType, cfg.TestsDir, servers, isLastReplay)
+            err := r.Run(userID, version)
             if err != nil {
                 return err
             }
-            _ = packets
         }
     }
 
     //get results
 
-    cleanUp(servers)
     return nil
 }
 
 // Randomly determines whether the original or random replay will be run first.
 // Returns the types of replays in the order that they will be run
-func generateReplayOrder() [2]ReplayType {
+func generateReplayOrder() [2]replay.ReplayType {
     rand.Seed(time.Now().UnixNano())
     if (rand.Intn(2) == 0) {
-        return [2]ReplayType{Original, Random}
+        return [2]replay.ReplayType{replay.Original, replay.Random}
     } else {
-        return [2]ReplayType{Random, Original}
+        return [2]replay.ReplayType{replay.Random, replay.Original}
     }
 }
-
-// Gets the packets for a given replay. This function also sets the IsTCP field for Test.
-// test: the test associated with the packets
-// replayType: the type of replay associated with the packets
-// testDir: the directory in which the replay files are located in
-// Returns a list of packets for the replay
-func getReplayPackets(test *replay.Test, replayType ReplayType, testDir string) ([]replay.Packet, error) {
-    var dataFile string
-    if replayType == Original {
-        dataFile = test.DataFile
-    } else {
-        dataFile = test.RandomDataFile
-    }
-    packets, isTCP, err := replay.ParseReplayJSON(path.Join(testDir, dataFile))
-    if err != nil {
-        return nil, err
-    }
-    test.IsTCP = isTCP
-    return packets, nil
-}
-
-func cleanUp(servers []*server.Server) {
-    for _, server := range servers {
-        server.MLabWebsocket.Close()
-    }
-}
-
 
 //TODO: if above gets too long, move below to app.utils file
 

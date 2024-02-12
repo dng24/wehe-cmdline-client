@@ -10,6 +10,10 @@ import (
     "wehe-cmdline-client/internal/config"
 )
 
+const (
+    Version = "4.0"
+)
+
 func main() {
     // parse command line arguments
     replaySubcommand := flag.NewFlagSet("replay", flag.ExitOnError)
@@ -52,7 +56,7 @@ func main() {
     }
 
     // run the app
-    err = app.Run(config)
+    err = app.Run(config, Version)
     if err != nil {
         fmt.Println(err)
         os.Exit(1)
