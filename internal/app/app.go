@@ -13,7 +13,7 @@ import (
 
     "wehe-cmdline-client/internal/config"
     "wehe-cmdline-client/internal/replay"
-    "wehe-cmdline-client/internal/server"
+    "wehe-cmdline-client/internal/serverhandler"
 )
 
 const (
@@ -37,8 +37,8 @@ func Run(cfg config.Config, version string) error {
     }
 
     //set up servers / certs
-    var servers []*server.Server
-    useMLab, err := server.UseMLab(cfg.ServerDisplay)
+    var servers []*serverhandler.Server
+    useMLab, err := serverhandler.UseMLab(cfg.ServerDisplay)
     if err != nil {
         return err
     }
@@ -51,7 +51,7 @@ func Run(cfg config.Config, version string) error {
         // 3) Connect to the websocket URL and have connection open for duration of test. The
         //    websocket connection is valid for two minutes.
         // 4) Connect to the SideChannel using the hostname returned by the GET request.
-        mlabServers, err := server.GetMLabServers()
+        mlabServers, err := serverhandler.GetMLabServers()
         if err != nil {
             return err
         }
@@ -65,7 +65,7 @@ func Run(cfg config.Config, version string) error {
 
             numTries += 1
 
-            srv, err := server.New(mlabServer.Hostname)
+            srv, err := serverhandler.New(mlabServer.Hostname)
             if err != nil {
                 mlabErrors = append(mlabErrors, fmt.Sprintf("Error initializing server to %s: %v", mlabServer.Hostname, err))
                 continue
@@ -81,7 +81,7 @@ func Run(cfg config.Config, version string) error {
             numTries = 0
             servers = append(servers, srv)
         }
-        // In the app, if MLab fails to connect, we fall back to the EC2 server. However, because
+        // In the app, if MLab fails to connect, we fall back to the EC2 serverhandler. However, because
         // the command line client is mainly used to test connectivity to MLab, we return an error
         // instead.
         if len(servers) != cfg.NumServers {
@@ -89,9 +89,9 @@ func Run(cfg config.Config, version string) error {
         }
     } else {
         if cfg.NumServers > 1 {
-            return fmt.Errorf("Must connect to MLab (%s) to run more than one concurrent test. Currently connected to %s.\n", server.UseMLabHostname, cfg.ServerDisplay)
+            return fmt.Errorf("Must connect to MLab (%s) to run more than one concurrent test. Currently connected to %s.\n", serverhandler.UseMLabHostname, cfg.ServerDisplay)
         }
-        srv, err := server.New(cfg.ServerDisplay)
+        srv, err := serverhandler.New(cfg.ServerDisplay)
         if err != nil {
             return err
         }
@@ -113,6 +113,8 @@ func Run(cfg config.Config, version string) error {
             if err != nil {
                 return err
             }
+            //TODO: remove this when done coding
+            time.Sleep(2 * time.Second)
         }
     }
 

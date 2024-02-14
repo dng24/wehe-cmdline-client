@@ -10,6 +10,7 @@ import (
 
 const (
     sideChannelPort = 55556
+    ask4PermissionOpcode = 2
 )
 
 type SideChannel struct {
@@ -58,7 +59,45 @@ func (sideChannel SideChannel) SendID(userID string, replayID int, replayName st
     return nil
 }
 
+// Asks server if client can run replay.
+// Returns a slice containing a status code and information; if status is success, then number of
+//     samples per replay is returned as the info; if status is failure, then failure code is
+//     returned as the info; can also return errors
+func (sideChannel SideChannel) Ask4Permission() ([]string, error) {
+    resp, err := sideChannel.sendAndReceive(ask4PermissionOpcode, "")
+    if err != nil {
+        return nil, err
+    }
+    permission := strings.Split(resp, ";")
+    if len(permission) < 2 {
+        return nil, fmt.Errorf("Received improperly formatted permission: %s\n", resp)
+    }
+    return permission, nil
+}
+
 func (sideChannel SideChannel) CleanUp() {
     fmt.Println("CLEANING UP side channel")
     sideChannel.conn.Close()
+}
+
+// Send and receive bytes to the side channel server.
+// opcode: the operation number
+// message: the data to send to the server
+// Returns the server response or any errors
+func (sideChannel SideChannel) sendAndReceive(opcode int, message string) (string, error) {
+    buffer := []byte{byte(opcode)}
+    buffer = append(buffer, []byte(message)...)
+    fmt.Println("sending:", buffer)
+    _, err := sideChannel.conn.Write(buffer)
+    if err != nil {
+        return "", err
+    }
+
+    resp := make([]byte, 1024)
+    n, err := sideChannel.conn.Read(resp)
+    if err != nil {
+        return "", err
+    }
+    fmt.Println("receiving:", string(resp[:n]))
+    return string(resp[:n]), nil
 }

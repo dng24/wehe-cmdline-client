@@ -1,4 +1,5 @@
-package server
+// Handles the logic for sending requests and receiving responses from the server.
+package serverhandler
 
 import (
     "encoding/json"
@@ -6,6 +7,7 @@ import (
     "io"
     "net"
     "net/http"
+    "strconv"
 
     "github.com/gorilla/websocket"
 
@@ -17,6 +19,13 @@ const (
     resultsURL = "https://%s:56566/Results"
     publicIPURL = "http://%s:%d/WHATSMYIPMAN"
     mlabServersURL = "https://locate.measurementlab.net/v2/nearest/wehe/replay" // used to find which MLab server to use
+
+    ask4PermissionOkStatus = "0"
+    ask4PermissionErrorStatus = "1"
+    ask4PermissionUnknownReplayMsg = "1"
+    ask4PermissionIPInUseMsg = "2"
+    ask4PermissionLowResourcesMsg = "3"
+    ask4PermissionResourceRetrievalFailMsg = "4"
 )
 
 type Server struct {
@@ -241,6 +250,39 @@ func getClientPublicIP(hostname string, port int, isTCP bool) (string, error) {
     }
 }
 
+// Asks the server if replay can be run.
+// Returns the number of samples that should be collected per replay if client can run replay;
+//     otherwise, returns an error
+func (srv *Server) Ask4Permission() (int, error) {
+    permission, err := srv.SideChannel.Ask4Permission()
+    if err != nil {
+        return -1, err
+    }
+    var errStr string
+    if permission[0] == ask4PermissionOkStatus {
+        samplesPerReplay, err := strconv.Atoi(permission[1])
+        if err != nil {
+            return -1, err
+        }
+        return samplesPerReplay, nil
+    } else if permission[0] == ask4PermissionErrorStatus {
+        switch permission[1] {
+        case ask4PermissionUnknownReplayMsg:
+            errStr = "Replay requested does not exist on server."
+        case ask4PermissionIPInUseMsg:
+            errStr = "A client with this IP is already connected. Try again later."
+        case ask4PermissionLowResourcesMsg:
+            errStr = "Server is low on resources Try again later."
+        case ask4PermissionResourceRetrievalFailMsg:
+            errStr = "Unable to determine server resources. Try again later."
+        default:
+            errStr = "Unknown server error: " + permission[1]
+        }
+    } else {
+        errStr = "Unknown Ask4Permission status code: " + permission[0]
+    }
+    return -1, fmt.Errorf(errStr + "\n")
+}
 
 func (srv *Server) CleanUp() {
     srv.SideChannel.CleanUp()

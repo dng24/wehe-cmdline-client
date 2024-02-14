@@ -3,8 +3,9 @@ package replay
 
 import (
     "path"
+    "time"
 
-    "wehe-cmdline-client/internal/server"
+    "wehe-cmdline-client/internal/serverhandler"
 )
 
 type ReplayType int
@@ -18,8 +19,9 @@ type Replay struct {
     test *Test // the test associated with the replay
     replayID ReplayType // indicates whether this is the original or random replay
     testDir string // path to the directory containing the replay files
-    servers []*server.Server // list of servers to run this replay on
+    servers []*serverhandler.Server // list of servers to run this replay on
     isLastReplay bool // true if this is the last replay to run; false otherwise
+    samplesPerReplay int // number of samples taken per replay
 }
 
 // Creates a new Replay struct.
@@ -29,7 +31,7 @@ type Replay struct {
 // servers: the list of servers that the replay should be run on
 // isLastReplay: true if this replay will be run last; false otherwise
 // Returns a new Replay struct
-func NewReplay(test *Test, replayID ReplayType, testDir string, servers []*server.Server, isLastReplay bool) Replay {
+func NewReplay(test *Test, replayID ReplayType, testDir string, servers []*serverhandler.Server, isLastReplay bool) Replay {
     return Replay{
         test: test,
         replayID: replayID,
@@ -58,6 +60,17 @@ func (r Replay) Run(userID string, clientVersion string) error {
         if err != nil {
             return err
         }
+    }
+
+    //TODO: client needs this since it sends ask4perm too fast. fix this by having server send back response for SendID that checks if the SendID input is any good
+    time.Sleep(time.Second)
+
+    for _, srv := range r.servers {
+        samplesPerReplay, err := srv.Ask4Permission()
+        if err != nil {
+            return err
+        }
+        r.samplesPerReplay = samplesPerReplay
     }
 
     return nil
