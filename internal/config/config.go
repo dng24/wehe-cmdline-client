@@ -28,7 +28,7 @@ type Config struct {
     UserConfigFile string
     TestsConfigFile string
     ServerCertFile string
-    TestsDir string
+    ReplaysDir string
     ResultsUIDir string
     ResultsLogDir string
     InfoFile string
@@ -128,7 +128,7 @@ func New(testNames *string, configPath *string) (Config, error) {
         return config, err
     }
 
-    config.TestsDir, err = getString(defaultSection, "tests_dir")
+    config.ReplaysDir, err = getString(defaultSection, "replays_dir")
     if err != nil {
         return config, err
     }

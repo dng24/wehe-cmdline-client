@@ -23,8 +23,7 @@ type responseCode byte // code representing the status of a response back from t
 
 const (
     okResponse responseCode = iota
-    clientInputError
-    serverError
+    errorResponse
 )
 
 type SideChannel struct {
@@ -118,9 +117,7 @@ func (sideChannel SideChannel) sendAndReceive(op opcode, message string) (string
     if responseCode == byte(okResponse) {
         fmt.Println("receiving:", string(resp[1:n]))
         return string(resp[1:n]), nil
-    } else if responseCode == byte(clientInputError) {
-        return "", fmt.Errorf("Bad input received from client.")
-    } else if responseCode == byte(serverError) {
+    } else if responseCode == byte(errorResponse) {
         return "", fmt.Errorf("Server unable to process request.")
     } else {
         return "", fmt.Errorf("Unknown error.")

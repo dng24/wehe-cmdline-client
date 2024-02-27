@@ -108,7 +108,7 @@ func Run(cfg config.Config, version string) error {
         test.TestID = testID
         for i, replayType := range replayOrder {
             isLastReplay := i != 0
-            r := replay.NewReplay(test, replayType, cfg.TestsDir, servers, isLastReplay)
+            r := replay.NewReplay(test, replayType, cfg.ReplaysDir, servers, isLastReplay)
             err := r.Run(userID, version)
             if err != nil {
                 return err
