@@ -2,6 +2,7 @@
 package serverhandler
 
 import (
+    "context"
     "encoding/json"
     "fmt"
     "io"
@@ -12,6 +13,7 @@ import (
     "github.com/gorilla/websocket"
 
     "wehe-cmdline-client/internal/network"
+    "wehe-cmdline-client/internal/testdata"
 )
 
 const (
@@ -282,6 +284,46 @@ func (srv *Server) Ask4Permission() (int, error) {
         errStr = "Unknown Ask4Permission status code: " + permission[0]
     }
     return -1, fmt.Errorf(errStr + "\n")
+}
+
+// Send and receive packets to and from the server.
+// replayInfo: information needed to run a replay
+// ctx: context to help with stopping all UDP sending and receiving threads when error occurs
+// cancel: the cancel function to call when error occurs to stop all UDP sending and receiving threads
+// errChan: channel to return any errors
+func (srv *Server) SendAndReceivePackets(replayInfo testdata.ReplayInfo, ctx context.Context, cancel context.CancelFunc, errChan chan<- error) {
+    if replayInfo.IsTCP {
+
+    } else {
+        // make UDP Client
+        udpClient, err := network.NewUDPClient(srv.IP, replayInfo.CSPair.ServerPort)
+        if err != nil {
+            cancel()
+            errChan <- err
+            return
+        }
+        defer udpClient.CleanUp()
+
+        sendErrChan := make(chan error)
+        recvErrChan := make(chan error)
+
+        // start sender and receiver to send and receive UDP packets to and from the server
+        go udpClient.SendPackets(replayInfo.Packets, !replayInfo.IsPortTest, ctx, cancel, sendErrChan)
+        go udpClient.RecvPackets(ctx, cancel, recvErrChan)
+
+        // wait for sender and receiver to finish
+        err = <-sendErrChan
+        if err != nil {
+            errChan <- err
+            return
+        }
+        err = <-recvErrChan
+        if err != nil {
+            errChan <- err
+            return
+        }
+    }
+    errChan <- nil
 }
 
 func (srv *Server) CleanUp() {

@@ -1,5 +1,5 @@
 // Parses and provides the tests that users would like to run.
-package replay
+package testdata
 
 import (
     "encoding/hex"
@@ -8,6 +8,7 @@ import (
     "os"
     "strconv"
     "strings"
+    "time"
 )
 
 // All the information we need to run a test.
@@ -29,6 +30,7 @@ type ReplayInfo struct {
     CSPair CSPair
     ReplayName string
     IsTCP bool
+    IsPortTest bool
 }
 
 // Either a TCPPacket or UDPPacket.
@@ -39,7 +41,7 @@ type Packet interface {
 // A TCP packet to be sent as part of a replay.
 type TCPPacket struct {
     CSPair string // the client & server of original packet capture, in the form {client_IP}.{client_port}-{server_IP}.{server_port}
-    Timestamp float64 // time since the start of the replay that this packet should be sent
+    Timestamp time.Duration // time since the start of the replay that this packet should be sent
     Payload []byte // the bytes to send to the server
     ResponseLength int // the expected length of response to this packet
     ResponseHash string // the expected hash of the response
@@ -52,7 +54,7 @@ func newTCPPacket(csPair string, timestamp float64, payload string, responseLeng
     }
     return TCPPacket{
         CSPair: csPair,
-        Timestamp: timestamp,
+        Timestamp: time.Duration(timestamp * float64(time.Second)),
         Payload: payloadBytes,
         ResponseLength: responseLength,
         ResponseHash: responseHash,
@@ -62,7 +64,7 @@ func newTCPPacket(csPair string, timestamp float64, payload string, responseLeng
 // A UDP packet to be sent as part of a replay.
 type UDPPacket struct {
     CSPair string // the client & server of original packet capture, in the form {client_IP}.{client_port}-{server_IP}.{server_port}
-    Timestamp float64 // time since the start of the replay that this packet should be sent
+    Timestamp time.Duration // time since the start of the replay that this packet should be sent
     Payload []byte // the bytes to send to the server
     End bool // ???
 }
@@ -74,7 +76,7 @@ func newUDPPacket(csPair string, timestamp float64, payload string, end bool) (U
     }
     return UDPPacket{
         CSPair: csPair,
-        Timestamp: timestamp,
+        Timestamp: time.Duration(timestamp * float64(time.Second)),
         Payload: payloadBytes,
         End: end,
     }, nil
@@ -246,11 +248,14 @@ func ParseReplayJSON(replayFile string) (ReplayInfo, error) {
     }
     replayName := strings.Split(string(jsonData[3]), "\"")[1]
 
+    isPortTest := strings.HasPrefix(replayName, "port")
+
     return ReplayInfo{
         Packets: packets,
         CSPair: csPair,
         ReplayName: replayName,
         IsTCP: isTCP,
+        IsPortTest: isPortTest,
     }, nil
 }
 

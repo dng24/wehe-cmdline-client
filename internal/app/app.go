@@ -14,6 +14,7 @@ import (
     "wehe-cmdline-client/internal/config"
     "wehe-cmdline-client/internal/replay"
     "wehe-cmdline-client/internal/serverhandler"
+    "wehe-cmdline-client/internal/testdata"
 )
 
 const (
@@ -31,7 +32,7 @@ func Run(cfg config.Config, version string) error {
     userID, testID := readUserConfig(cfg.UserConfigFile)
     fmt.Println(userID, testID)
 
-    tests, err := replay.ParseTestJSON(cfg.TestsConfigFile, cfg.TestNames)
+    tests, err := testdata.ParseTestJSON(cfg.TestsConfigFile, cfg.TestNames)
     if err != nil {
         return err
     }

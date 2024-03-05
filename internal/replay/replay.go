@@ -2,10 +2,12 @@
 package replay
 
 import (
+    "context"
     "path"
     "time"
 
     "wehe-cmdline-client/internal/serverhandler"
+    "wehe-cmdline-client/internal/testdata"
 )
 
 type ReplayType int
@@ -16,7 +18,7 @@ const (
 )
 
 type Replay struct {
-    test *Test // the test associated with the replay
+    test *testdata.Test // the test associated with the replay
     replayID ReplayType // indicates whether this is the original or random replay
     testDir string // path to the directory containing the replay files
     servers []*serverhandler.Server // list of servers to run this replay on
@@ -31,7 +33,7 @@ type Replay struct {
 // servers: the list of servers that the replay should be run on
 // isLastReplay: true if this replay will be run last; false otherwise
 // Returns a new Replay struct
-func NewReplay(test *Test, replayID ReplayType, testDir string, servers []*serverhandler.Server, isLastReplay bool) Replay {
+func NewReplay(test *testdata.Test, replayID ReplayType, testDir string, servers []*serverhandler.Server, isLastReplay bool) Replay {
     return Replay{
         test: test,
         replayID: replayID,
@@ -73,6 +75,26 @@ func (r Replay) Run(userID string, clientVersion string) error {
         r.samplesPerReplay = samplesPerReplay
     }
 
+    if err != nil {
+        return err
+    }
+
+    ctx, cancel := context.WithCancel(context.Background())
+    defer cancel()
+    var errChans []chan error
+    for _, srv := range r.servers {
+        errChan := make(chan error)
+        go srv.SendAndReceivePackets(replayInfo, ctx, cancel, errChan)
+        errChans = append(errChans, errChan)
+    }
+
+    for _, errChan := range errChans {
+        err := <-errChan
+        if err != nil {
+            return err
+        }
+    }
+
     return nil
 }
 
@@ -81,16 +103,16 @@ func (r Replay) Run(userID string, clientVersion string) error {
 // replayType: the type of replay associated with the packets
 // testDir: the directory in which the replay files are located in
 // Returns a list of packets for the replay
-func (r Replay) getReplayInfo() (ReplayInfo, error) {
+func (r Replay) getReplayInfo() (testdata.ReplayInfo, error) {
     var dataFile string
     if r.replayID == Original {
         dataFile = r.test.DataFile
     } else {
         dataFile = r.test.RandomDataFile
     }
-    replayInfo, err := ParseReplayJSON(path.Join(r.testDir, dataFile))
+    replayInfo, err := testdata.ParseReplayJSON(path.Join(r.testDir, dataFile))
     if err != nil {
-        return ReplayInfo{}, err
+        return testdata.ReplayInfo{}, err
     }
     return replayInfo, nil
 }
