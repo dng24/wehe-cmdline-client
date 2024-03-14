@@ -120,7 +120,7 @@ func (udpClient UDPClient) RecvPackets(ctx context.Context, cancel context.Cance
                     return
                 }
             }
-            _ = numBytes
+            fmt.Printf("Received %d bytes from server.\n", numBytes)
         }
     }
 }

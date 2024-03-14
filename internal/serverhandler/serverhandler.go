@@ -243,12 +243,12 @@ func getClientPublicIP(hostname string, port int, isTCP bool) (string, error) {
         }
 
         resp := make([]byte, 256)
-        _, err = conn.Read(resp)
+        numBytes, err := conn.Read(resp)
         if err != nil {
             return "", err
         }
 
-        return string(resp), nil
+        return string(resp[:numBytes]), nil
     }
 }
 
