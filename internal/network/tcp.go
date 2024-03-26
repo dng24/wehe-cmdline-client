@@ -1,70 +1,65 @@
-// A UDP client to run UDP replays.
+// A TCP client to run TCP replays.
+//TODO: this file can probably be combined with the UDP file
 package network
 
 import (
     "context"
     "fmt"
+    "io"
     "net"
-    "strconv"
     "time"
 
     "wehe-cmdline-client/internal/testdata"
 )
 
-//TODO: make sure code when timeout isn't hit on both client and server
 const (
-    udpReplayTimeout = 45 * time.Second // each UDP replay is limited to 45 seconds so that user doesn't have to wait forever
+    tcpReplayTimeout = 40 * time.Second // each TCP replay is limited to 40 seconds so that user doesn't have to wait forever
 )
 
-type UDPClient struct {
+type TCPClient struct {
     IP string // IP that the client should connect to
     Port int // port that the client should connect to
-    Conn *net.UDPConn // the UDP connection to the server
+    Conn *net.Conn // the TCP connection to the server
 }
 
-// Makes a new UDP client.
+// Makes a new TCP client.
 // ip: IP of the server
 // port: port of the server
-// Returns a new UDP client or any errors
-func NewUDPClient(ip string, port int) (UDPClient, error) {
-    portStr := strconv.Itoa(port)
-    udpServer, err := net.ResolveUDPAddr("udp", ip + ":" + portStr)
+// Returns a new TCP client or any errors
+func NewTCPClient(ip string, port int) (TCPClient, error) {
+    conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", ip, port))
     if err != nil {
-        return UDPClient{}, err
+        return TCPClient{}, err
     }
-    conn, err := net.DialUDP("udp", nil, udpServer)
-    if err != nil {
-        return UDPClient{}, err
-    }
-    return UDPClient{
+    return TCPClient{
         IP: ip,
         Port: port,
-        Conn: conn,
+        Conn: &conn,
     }, nil
 }
 
-// Sends UDP packets to the server.
+// Sends TCP packets to the server.
 // packets: the packets to send to the server
 // timing: true if packets should be sent at their timestamps; false otherwise
-// ctx: context to help with stopping all UDP sending and receiving threads when error occurs
-// cancel: the cancel function to call when error occurs to stop all UDP sending and receiving threads
+// ctx: context to help with stopping all TCP sending and receiving threads when error occurs
+// cancel: the cancel function to call when error occurs to stop all TCP sending and receiving threads
 // errChan: channel to return any errors
-func (udpClient UDPClient) SendPackets(packets []testdata.Packet, timing bool, ctx context.Context, cancel context.CancelFunc, errChan chan<- error) {
+func (tcpClient TCPClient) SendPackets(packets []testdata.Packet, timing bool, ctx context.Context, cancel context.CancelFunc, errChan chan<- error) {
     startTime := time.Now()
     packetLen := len(packets)
     for i, p := range packets {
         select {
         case <-ctx.Done():
-            // another SendPackets or RecvPackets thread has errored out or finished sending packets
+            // another SendPackets or RecvPackets thread has errored out
             errChan <- nil
             return
         default:
-            packet := p.(*testdata.UDPPacket)
+            packet := p.(*testdata.TCPPacket)
 
             // replays stop after a certain amount of time so that user doesn't have to wait too long
             elapsedTime := time.Now().Sub(startTime)
-            if elapsedTime > udpReplayTimeout {
-                fmt.Println("TIMEOUT:", elapsedTime, udpReplayTimeout)
+            if elapsedTime > tcpReplayTimeout {
+                fmt.Println("TIMEOUT:", elapsedTime, tcpReplayTimeout)
                 cancel()
                 errChan <- nil
                 return
@@ -77,10 +72,10 @@ func (udpClient UDPClient) SendPackets(packets []testdata.Packet, timing bool, c
             }
 
             fmt.Printf("Sending packet %d/%d at %s\n", i + 1, packetLen, packet.Timestamp)
-            _, err := udpClient.Conn.Write(packet.Payload)
+            _, err := (*tcpClient.Conn).Write(packet.Payload)
             if err != nil {
                 cancel()
-                errChan <- err
+                errChan <- nil
                 return
             }
         }
@@ -88,20 +83,20 @@ func (udpClient UDPClient) SendPackets(packets []testdata.Packet, timing bool, c
     errChan <- nil
 }
 
-// Receives UDP packets from the server.
-// ctx: context to help with stopping all UDP sending and receiving threads when error occurs
-// cancel: the cancel function to call when error occurs to stop all UDP sending and receiving threads
+// Receives TCP packets from the server.
+// ctx: context to help with stopping all TCP sending and receiving threads when error occurs
+// cancel: the cancel function to call when error occurs to stop all TCP sending and receiving threads
 // errChan: channel to return any errors
-func (udpClient UDPClient) RecvPackets(ctx context.Context, cancel context.CancelFunc, errChan chan<- error) {
+func (tcpClient TCPClient) RecvPackets(ctx context.Context, cancel context.CancelFunc, errChan chan<- error) {
     for {
         select {
         case <-ctx.Done():
-            // another SendPackets or RecvPackets thread has errored out or finished sending packets
+            // another SendPackets or RecvPackets thread has errored out
             errChan <- nil
             return
         default:
             // don't block trying to read, so that check above can be done to see if another thread has finished
-            err := udpClient.Conn.SetReadDeadline(time.Now().Add(1 * time.Second))
+            err := (*tcpClient.Conn).SetReadDeadline(time.Now().Add(1 * time.Second))
             if err != nil {
                 cancel()
                 errChan <- err
@@ -109,11 +104,15 @@ func (udpClient UDPClient) RecvPackets(ctx context.Context, cancel context.Cance
             }
 
             buffer := make([]byte, 4096)
-            numBytes, err := udpClient.Conn.Read(buffer)
+            numBytes, err := (*tcpClient.Conn).Read(buffer)
             if err != nil {
                 if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
                     // read timeout to not block reached
                     break
+                } else if err == io.EOF {
+                    // server finished sending packets and closed its connection
+                    errChan <- nil
+                    return
                 } else {
                     cancel()
                     errChan <- err
@@ -123,8 +122,10 @@ func (udpClient UDPClient) RecvPackets(ctx context.Context, cancel context.Cance
             fmt.Printf("Received %d bytes from server.\n", numBytes)
         }
     }
+    errChan <- nil
 }
 
-func (udpClient UDPClient) CleanUp() {
-    udpClient.Conn.Close()
+
+func(tcpClient TCPClient) CleanUp() {
+    (*tcpClient.Conn).Close()
 }

@@ -87,9 +87,9 @@ type ReplayFilePacket struct {
     CSPair string `json:"c_s_pair"` // the client & server of original packet capture, in the form {client_IP}.{client_port}-{server_IP}.{server_port}
     Timestamp float64 `json:"timestamp"` // time since the start of the replay that this packet should be sent
     Payload string `json:"payload"` // the bytes to send to the server
-    ResponseLength *int `json:"response_len"` // the expected length of response to this packet *TCP only field
-    ResponseHash *string `json:"response_hash"` // the expected hash of the response *TCP only field
-    End *bool `json:"end"` // ???
+    ResponseLength *int `json:"response_len"` // the expected length of response to this packet, TCP only field
+    ResponseHash *string `json:"response_hash"` // the expected hash of the response, TCP only field
+    End *bool `json:"end"` // ???, UDP only field
 }
 
 // Represents a client-server pair. Every replay file recorded has a CSPair.

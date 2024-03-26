@@ -94,7 +94,6 @@ func (r Replay) Run(userID string, clientVersion string) error {
             return err
         }
     }
-
     return nil
 }
 

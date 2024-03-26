@@ -120,7 +120,7 @@ func Run(cfg config.Config, version string) error {
     }
 
     //get results
-
+    fmt.Println("RESULTS")
     return nil
 }
 

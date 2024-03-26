@@ -293,7 +293,32 @@ func (srv *Server) Ask4Permission() (int, error) {
 // errChan: channel to return any errors
 func (srv *Server) SendAndReceivePackets(replayInfo testdata.ReplayInfo, ctx context.Context, cancel context.CancelFunc, errChan chan<- error) {
     if replayInfo.IsTCP {
+        tcpClient, err := network.NewTCPClient(srv.IP, replayInfo.CSPair.ServerPort)
+        if err != nil {
+            cancel()
+            errChan <- err
+            return
+        }
+        defer tcpClient.CleanUp()
 
+        sendErrChan := make(chan error)
+        recvErrChan := make(chan error)
+
+        // start sender and receiver to send and receive UDP packets to and from the server
+        go tcpClient.SendPackets(replayInfo.Packets, !replayInfo.IsPortTest, ctx, cancel, sendErrChan)
+        go tcpClient.RecvPackets(ctx, cancel, recvErrChan)
+
+        // wait for sender and receiver to finish
+        err = <-sendErrChan
+        if err != nil {
+            errChan <- err
+            return
+        }
+        err = <-recvErrChan
+        if err != nil {
+            errChan <- err
+            return
+        }
     } else {
         // make UDP Client
         udpClient, err := network.NewUDPClient(srv.IP, replayInfo.CSPair.ServerPort)
@@ -328,7 +353,6 @@ func (srv *Server) SendAndReceivePackets(replayInfo testdata.ReplayInfo, ctx con
 
 func (srv *Server) CleanUp() {
     srv.SideChannel.CleanUp()
-    fmt.Println("CLEANING UP server")
     var err error
     if srv.MLabWebsocket != nil {
         err = srv.MLabWebsocket.Close()
