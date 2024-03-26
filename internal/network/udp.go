@@ -13,7 +13,7 @@ import (
 
 //TODO: make sure code when timeout isn't hit on both client and server
 const (
-    udpReplayTimeout = 45 * time.Second // each UDP replay is limited to 45 seconds so that user doesn't have to wait forever
+    udpReplayTimeout = 40 * time.Second // each UDP replay is limited to 45 seconds so that user doesn't have to wait forever
 )
 
 type UDPClient struct {

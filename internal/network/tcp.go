@@ -13,7 +13,7 @@ import (
 )
 
 const (
-    tcpReplayTimeout = 40 * time.Second // each TCP replay is limited to 40 seconds so that user doesn't have to wait forever
+    tcpReplayTimeout = 45 * time.Second // each TCP replay is limited to 40 seconds so that user doesn't have to wait forever
 )
 
 type TCPClient struct {
