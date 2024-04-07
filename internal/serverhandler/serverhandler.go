@@ -12,6 +12,7 @@ import (
 
     "github.com/gorilla/websocket"
 
+    "wehe-cmdline-client/internal/analyzer"
     "wehe-cmdline-client/internal/network"
     "wehe-cmdline-client/internal/testdata"
 )
@@ -288,12 +289,13 @@ func (srv *Server) Ask4Permission() (int, error) {
 
 // Send and receive packets to and from the server.
 // replayInfo: information needed to run a replay
+// throughputCalculator: analyzer to calculate throughputs
 // ctx: context to help with stopping all UDP sending and receiving threads when error occurs
 // cancel: the cancel function to call when error occurs to stop all UDP sending and receiving threads
 // errChan: channel to return any errors
-func (srv *Server) SendAndReceivePackets(replayInfo testdata.ReplayInfo, ctx context.Context, cancel context.CancelFunc, errChan chan<- error) {
+func (srv *Server) SendAndReceivePackets(replayInfo testdata.ReplayInfo, throughputCalculator *analyzer.Analyzer, ctx context.Context, cancel context.CancelFunc, errChan chan<- error) {
     if replayInfo.IsTCP {
-        tcpClient, err := network.NewTCPClient(srv.IP, replayInfo.CSPair.ServerPort)
+        tcpClient, err := network.NewTCPClient(srv.IP, replayInfo.CSPair.ServerPort, replayInfo.IsPortTest)
         if err != nil {
             cancel()
             errChan <- err
@@ -306,7 +308,7 @@ func (srv *Server) SendAndReceivePackets(replayInfo testdata.ReplayInfo, ctx con
 
         // start sender and receiver to send and receive UDP packets to and from the server
         go tcpClient.SendPackets(replayInfo.Packets, !replayInfo.IsPortTest, ctx, cancel, sendErrChan)
-        go tcpClient.RecvPackets(ctx, cancel, recvErrChan)
+        go tcpClient.RecvPackets(throughputCalculator, ctx, cancel, recvErrChan)
 
         // wait for sender and receiver to finish
         err = <-sendErrChan
@@ -334,7 +336,7 @@ func (srv *Server) SendAndReceivePackets(replayInfo testdata.ReplayInfo, ctx con
 
         // start sender and receiver to send and receive UDP packets to and from the server
         go udpClient.SendPackets(replayInfo.Packets, !replayInfo.IsPortTest, ctx, cancel, sendErrChan)
-        go udpClient.RecvPackets(ctx, cancel, recvErrChan)
+        go udpClient.RecvPackets(throughputCalculator, ctx, cancel, recvErrChan)
 
         // wait for sender and receiver to finish
         err = <-sendErrChan

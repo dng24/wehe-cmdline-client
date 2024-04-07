@@ -9,32 +9,41 @@ import (
     "net"
     "time"
 
+    "wehe-cmdline-client/internal/analyzer"
     "wehe-cmdline-client/internal/testdata"
 )
 
 const (
-    tcpReplayTimeout = 45 * time.Second // each TCP replay is limited to 40 seconds so that user doesn't have to wait forever
+    TCPReplayTimeout = 45 * time.Second // each TCP replay is limited to 40 seconds so that user doesn't have to wait forever
+    PortReplayTimeout = 30 * time.Second // port replays run only for 30 seconds though
 )
 
 type TCPClient struct {
     IP string // IP that the client should connect to
     Port int // port that the client should connect to
     Conn *net.Conn // the TCP connection to the server
+    Timeout time.Duration // maximum time to run replay
 }
 
 // Makes a new TCP client.
 // ip: IP of the server
 // port: port of the server
+// isPortTest: true if replay is a port test; false otherwise
 // Returns a new TCP client or any errors
-func NewTCPClient(ip string, port int) (TCPClient, error) {
+func NewTCPClient(ip string, port int, isPortTest bool) (TCPClient, error) {
     conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", ip, port))
     if err != nil {
         return TCPClient{}, err
+    }
+    timeout := TCPReplayTimeout
+    if isPortTest {
+        timeout = PortReplayTimeout
     }
     return TCPClient{
         IP: ip,
         Port: port,
         Conn: &conn,
+        Timeout: timeout,
     }, nil
 }
 
@@ -58,8 +67,8 @@ func (tcpClient TCPClient) SendPackets(packets []testdata.Packet, timing bool, c
 
             // replays stop after a certain amount of time so that user doesn't have to wait too long
             elapsedTime := time.Now().Sub(startTime)
-            if elapsedTime > tcpReplayTimeout {
-                fmt.Println("TIMEOUT:", elapsedTime, tcpReplayTimeout)
+            if elapsedTime > tcpClient.Timeout {
+                fmt.Println("TIMEOUT:", elapsedTime, tcpClient.Timeout)
                 cancel()
                 errChan <- nil
                 return
@@ -84,10 +93,11 @@ func (tcpClient TCPClient) SendPackets(packets []testdata.Packet, timing bool, c
 }
 
 // Receives TCP packets from the server.
+// throughputCalculator: analyzer to calculate throughputs
 // ctx: context to help with stopping all TCP sending and receiving threads when error occurs
 // cancel: the cancel function to call when error occurs to stop all TCP sending and receiving threads
 // errChan: channel to return any errors
-func (tcpClient TCPClient) RecvPackets(ctx context.Context, cancel context.CancelFunc, errChan chan<- error) {
+func (tcpClient TCPClient) RecvPackets(throughputCalculator *analyzer.Analyzer, ctx context.Context, cancel context.CancelFunc, errChan chan<- error) {
     for {
         select {
         case <-ctx.Done():
@@ -119,6 +129,8 @@ func (tcpClient TCPClient) RecvPackets(ctx context.Context, cancel context.Cance
                     return
                 }
             }
+
+            throughputCalculator.AddBytesRead(numBytes)
             fmt.Printf("Received %d bytes from server.\n", numBytes)
         }
     }

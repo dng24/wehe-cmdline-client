@@ -8,12 +8,13 @@ import (
     "strconv"
     "time"
 
+    "wehe-cmdline-client/internal/analyzer"
     "wehe-cmdline-client/internal/testdata"
 )
 
 //TODO: make sure code when timeout isn't hit on both client and server
 const (
-    udpReplayTimeout = 40 * time.Second // each UDP replay is limited to 45 seconds so that user doesn't have to wait forever
+    UDPReplayTimeout = 40 * time.Second // each UDP replay is limited to 45 seconds so that user doesn't have to wait forever
 )
 
 type UDPClient struct {
@@ -63,8 +64,8 @@ func (udpClient UDPClient) SendPackets(packets []testdata.Packet, timing bool, c
 
             // replays stop after a certain amount of time so that user doesn't have to wait too long
             elapsedTime := time.Now().Sub(startTime)
-            if elapsedTime > udpReplayTimeout {
-                fmt.Println("TIMEOUT:", elapsedTime, udpReplayTimeout)
+            if elapsedTime > UDPReplayTimeout {
+                fmt.Println("TIMEOUT:", elapsedTime, UDPReplayTimeout)
                 cancel()
                 errChan <- nil
                 return
@@ -89,10 +90,11 @@ func (udpClient UDPClient) SendPackets(packets []testdata.Packet, timing bool, c
 }
 
 // Receives UDP packets from the server.
+// throughputCalculator: analyzer to calculate throughputs
 // ctx: context to help with stopping all UDP sending and receiving threads when error occurs
 // cancel: the cancel function to call when error occurs to stop all UDP sending and receiving threads
 // errChan: channel to return any errors
-func (udpClient UDPClient) RecvPackets(ctx context.Context, cancel context.CancelFunc, errChan chan<- error) {
+func (udpClient UDPClient) RecvPackets(throughputCalculator *analyzer.Analyzer, ctx context.Context, cancel context.CancelFunc, errChan chan<- error) {
     for {
         select {
         case <-ctx.Done():
@@ -120,6 +122,8 @@ func (udpClient UDPClient) RecvPackets(ctx context.Context, cancel context.Cance
                     return
                 }
             }
+
+            throughputCalculator.AddBytesRead(numBytes)
             fmt.Printf("Received %d bytes from server.\n", numBytes)
         }
     }

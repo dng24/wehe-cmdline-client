@@ -6,6 +6,8 @@ import (
     "path"
     "time"
 
+    "wehe-cmdline-client/internal/analyzer"
+    "wehe-cmdline-client/internal/network"
     "wehe-cmdline-client/internal/serverhandler"
     "wehe-cmdline-client/internal/testdata"
 )
@@ -57,6 +59,7 @@ func (r Replay) Run(userID string, clientVersion string) error {
         srv.ConnectToSideChannel(id)
     }
 
+    // let the server know what replay to run
     for _, srv := range r.servers {
         err = srv.SendID(replayInfo.IsTCP, replayInfo.CSPair.ServerPort, userID, int(r.replayID), replayInfo.ReplayName, r.test.TestID, r.isLastReplay, clientVersion)
         if err != nil {
@@ -67,6 +70,7 @@ func (r Replay) Run(userID string, clientVersion string) error {
     //TODO: client needs this since it sends ask4perm too fast. fix this by having server send back response for SendID that checks if the SendID input is any good
     time.Sleep(time.Second)
 
+    // ask the server permission to run replay 
     for _, srv := range r.servers {
         samplesPerReplay, err := srv.Ask4Permission()
         if err != nil {
@@ -79,20 +83,47 @@ func (r Replay) Run(userID string, clientVersion string) error {
         return err
     }
 
+    // calculate the time that the replay will run for
+    replayTime := time.Duration((r.test.Time / 2) * int(time.Second))
+    if replayInfo.IsPortTest {
+        replayTime = min(replayTime, network.PortReplayTimeout)
+    } else if replayInfo.IsTCP {
+        replayTime = min(replayTime, network.TCPReplayTimeout)
+    } else {
+        replayTime = min(replayTime, network.UDPReplayTimeout)
+    }
+
+    // run the analyzer to gather throughput data
+    var throughputCalculators []*analyzer.Analyzer
+    for _ = range r.servers {
+        throughputCalculator := analyzer.NewAnalyzer(replayTime, r.samplesPerReplay)
+        throughputCalculator.Run()
+        throughputCalculators = append(throughputCalculators, throughputCalculator)
+    }
+
+    // send and receive packets
     ctx, cancel := context.WithCancel(context.Background())
     defer cancel()
     var errChans []chan error
-    for _, srv := range r.servers {
+    for i, srv := range r.servers {
         errChan := make(chan error)
-        go srv.SendAndReceivePackets(replayInfo, ctx, cancel, errChan)
+        go srv.SendAndReceivePackets(replayInfo, throughputCalculators[i], ctx, cancel, errChan)
         errChans = append(errChans, errChan)
     }
 
     for _, errChan := range errChans {
         err := <-errChan
         if err != nil {
+            for _, throughputCalculator := range throughputCalculators {
+                throughputCalculator.Stop()
+            }
             return err
         }
+    }
+
+    // stop the analyzer
+    for _, throughputCalculator := range throughputCalculators {
+        throughputCalculator.Stop()
     }
     return nil
 }
