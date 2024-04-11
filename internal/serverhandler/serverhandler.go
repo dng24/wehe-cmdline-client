@@ -9,6 +9,7 @@ import (
     "net"
     "net/http"
     "strconv"
+    "time"
 
     "github.com/gorilla/websocket"
 
@@ -39,6 +40,7 @@ type Server struct {
     PublicIPURL string // URL for client to get its public IP
     MLabWebsocket *websocket.Conn // websocket connection for MLab
     NumMLabTries int // number of tries before successful connection to MLab server
+    ThroughputCalculator *analyzer.Analyzer // analyzer to calculate throughputs
 }
 
 // Creates a new Server struct.
@@ -289,11 +291,14 @@ func (srv *Server) Ask4Permission() (int, error) {
 
 // Send and receive packets to and from the server.
 // replayInfo: information needed to run a replay
-// throughputCalculator: analyzer to calculate throughputs
+// samplesPerReplay: number of samples that should be taken per replay
+// testLength: number of seconds to run the test
 // ctx: context to help with stopping all UDP sending and receiving threads when error occurs
 // cancel: the cancel function to call when error occurs to stop all UDP sending and receiving threads
 // errChan: channel to return any errors
-func (srv *Server) SendAndReceivePackets(replayInfo testdata.ReplayInfo, throughputCalculator *analyzer.Analyzer, ctx context.Context, cancel context.CancelFunc, errChan chan<- error) {
+func (srv *Server) SendAndReceivePackets(replayInfo testdata.ReplayInfo, samplesPerReplay int, testLength int, ctx context.Context, cancel context.CancelFunc, errChan chan<- error) {
+    srv.initAnalyzer(replayInfo, samplesPerReplay, testLength)
+
     if replayInfo.IsTCP {
         tcpClient, err := network.NewTCPClient(srv.IP, replayInfo.CSPair.ServerPort, replayInfo.IsPortTest)
         if err != nil {
@@ -308,7 +313,7 @@ func (srv *Server) SendAndReceivePackets(replayInfo testdata.ReplayInfo, through
 
         // start sender and receiver to send and receive UDP packets to and from the server
         go tcpClient.SendPackets(replayInfo.Packets, !replayInfo.IsPortTest, ctx, cancel, sendErrChan)
-        go tcpClient.RecvPackets(throughputCalculator, ctx, cancel, recvErrChan)
+        go tcpClient.RecvPackets(srv.ThroughputCalculator, ctx, cancel, recvErrChan)
 
         // wait for sender and receiver to finish
         err = <-sendErrChan
@@ -336,7 +341,7 @@ func (srv *Server) SendAndReceivePackets(replayInfo testdata.ReplayInfo, through
 
         // start sender and receiver to send and receive UDP packets to and from the server
         go udpClient.SendPackets(replayInfo.Packets, !replayInfo.IsPortTest, ctx, cancel, sendErrChan)
-        go udpClient.RecvPackets(throughputCalculator, ctx, cancel, recvErrChan)
+        go udpClient.RecvPackets(srv.ThroughputCalculator, ctx, cancel, recvErrChan)
 
         // wait for sender and receiver to finish
         err = <-sendErrChan
@@ -351,6 +356,23 @@ func (srv *Server) SendAndReceivePackets(replayInfo testdata.ReplayInfo, through
         }
     }
     errChan <- nil
+}
+
+// Initialize the analyzer to collect throughput information
+// replayInfo: information needed to run a replay
+// samplesPerReplay: number of samples that should be taken per replay
+// testLength: number of seconds to run the test
+func (srv *Server) initAnalyzer(replayInfo testdata.ReplayInfo, samplesPerReplay int, testLength int) {
+    // calculate the time that the replay will run for
+    replayTime := time.Duration((testLength / 2) * int(time.Second))
+    if replayInfo.IsPortTest {
+        replayTime = min(replayTime, network.PortReplayTimeout)
+    } else if replayInfo.IsTCP {
+        replayTime = min(replayTime, network.TCPReplayTimeout)
+    } else {
+        replayTime = min(replayTime, network.UDPReplayTimeout)
+    }
+    srv.ThroughputCalculator = analyzer.NewAnalyzer(replayTime, samplesPerReplay)
 }
 
 func (srv *Server) CleanUp() {

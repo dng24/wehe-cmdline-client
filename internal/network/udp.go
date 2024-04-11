@@ -95,6 +95,9 @@ func (udpClient UDPClient) SendPackets(packets []testdata.Packet, timing bool, c
 // cancel: the cancel function to call when error occurs to stop all UDP sending and receiving threads
 // errChan: channel to return any errors
 func (udpClient UDPClient) RecvPackets(throughputCalculator *analyzer.Analyzer, ctx context.Context, cancel context.CancelFunc, errChan chan<- error) {
+    throughputCalculator.Run()
+    defer throughputCalculator.Stop()
+
     for {
         select {
         case <-ctx.Done():

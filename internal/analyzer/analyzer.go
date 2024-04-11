@@ -13,6 +13,9 @@ type Analyzer struct {
     samples []int // the number of bytes received for each sample
     throughputs []float64 // the Mbps for each sample
     ticker *time.Ticker // allows a sample to be taken every sampleDuration seconds
+
+    startTime time.Time // time the replay starts
+    ReplayElapsedTime time.Duration // length of replay
 }
 
 // Creates a new Analyzer object
@@ -32,8 +35,8 @@ func NewAnalyzer(replayLength time.Duration, numberOfSamples int) *Analyzer {
 
 // Begins the capturing of samples. Runs a function to capture a sample every sampleDuration seconds.
 func (a *Analyzer) Run() {
+    a.startTime = time.Now()
     a.ticker = time.NewTicker(a.sampleDuration)
-
     go func() {
         for {
             <-a.ticker.C
@@ -53,6 +56,7 @@ func (a *Analyzer) createSample() {
 
 // Stop capturing samples.
 func (a *Analyzer) Stop() {
+    a.ReplayElapsedTime = time.Now().Sub(a.startTime)
     a.ticker.Stop()
 }
 
@@ -73,7 +77,7 @@ func (a *Analyzer) GetThroughputsAndSlices() ([]float64, []int) {
 }
 
 // Calculates and returns the average throughput for the replay.
-func (a *Analyzer) GetAverageThroughputs() float64 {
+func (a *Analyzer) GetAverageThroughput() float64 {
     sum := 0.0
     for _, throughput := range a.throughputs {
         sum += throughput
