@@ -3,6 +3,7 @@ package replay
 
 import (
     "context"
+    "fmt"
     "path"
     "time"
 
@@ -95,6 +96,22 @@ func (r Replay) Run(userID string, clientVersion string) error {
         err := <-errChan
         if err != nil {
             return err
+        }
+    }
+
+    // send replay duration and samples to server
+    for _, srv := range r.servers {
+        averageThroughput, err := srv.SendThroughputs()
+        if err != nil {
+            return err
+        }
+
+        fmt.Println("DEBUG avg thruput:", averageThroughput)
+        // TODO: currently only test of last server is stored; figure out what to do with tomography
+        if r.replayID == Original {
+            r.test.OriginalThroughput = averageThroughput
+        } else {
+            r.test.RandomThroughput = averageThroughput
         }
     }
 

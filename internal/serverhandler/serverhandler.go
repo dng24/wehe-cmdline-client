@@ -30,6 +30,8 @@ const (
     ask4PermissionIPInUseMsg = "2"
     ask4PermissionLowResourcesMsg = "3"
     ask4PermissionResourceRetrievalFailMsg = "4"
+
+    sendThroughputsOkStatus = "0"
 )
 
 type Server struct {
@@ -373,6 +375,14 @@ func (srv *Server) initAnalyzer(replayInfo testdata.ReplayInfo, samplesPerReplay
         replayTime = min(replayTime, network.UDPReplayTimeout)
     }
     srv.ThroughputCalculator = analyzer.NewAnalyzer(replayTime, samplesPerReplay)
+}
+
+func (srv *Server) SendThroughputs() (float64, error) {
+    _, err := srv.SideChannel.SendThroughputs(srv.ThroughputCalculator.ReplayElapsedTime, srv.ThroughputCalculator.Throughputs, srv.ThroughputCalculator.SampleTimes)
+    if err != nil {
+        return -1, err
+    }
+    return srv.ThroughputCalculator.GetAverageThroughput(), nil
 }
 
 func (srv *Server) CleanUp() {
