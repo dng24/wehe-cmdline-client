@@ -115,6 +115,10 @@ func (r Replay) Run(userID string, clientVersion string) error {
         }
     }
 
+    for _, srv := range r.servers {
+        srv.CleanUp()
+    }
+
     return nil
 }
 
