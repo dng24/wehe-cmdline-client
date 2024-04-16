@@ -3,6 +3,7 @@ package network
 
 import (
     "fmt"
+    "encoding/binary"
     "encoding/json"
     "net"
     "strconv"
@@ -67,7 +68,13 @@ func (sideChannel SideChannel) SendID(userID string, replayID int, replayName st
 
     message := strings.Join([]string{userID, replayIDString, replayName, numMLabTriesString, testIDString, isLastReplayString, publicIP, clientVersion}, ";")
     fmt.Println(message)
-    _, err := sideChannel.conn.Write([]byte(message))
+    messageLength := make([]byte, 4)
+    binary.LittleEndian.PutUint32(messageLength, uint32(len(message)))
+    _, err := sideChannel.conn.Write(messageLength)
+    if err != nil {
+        return err
+    }
+    _, err = sideChannel.conn.Write([]byte(message))
     if err != nil {
         return err
     }
@@ -124,12 +131,31 @@ func (sideChannel SideChannel) sendAndReceive(op opcode, message string) (string
     buffer := []byte{byte(op)}
     buffer = append(buffer, []byte(message)...)
     fmt.Println("sending:", buffer)
-    _, err := sideChannel.conn.Write(buffer)
+
+    // send length of request
+    dataLength := make([]byte, 4)
+    binary.LittleEndian.PutUint32(dataLength, uint32(len(buffer)))
+    _, err := sideChannel.conn.Write(dataLength)
     if err != nil {
         return "", err
     }
 
-    resp := make([]byte, 1024)
+    // send request
+    _, err = sideChannel.conn.Write(buffer)
+    if err != nil {
+        return "", err
+    }
+
+    // read length of response
+    messageLengthBytes := make([]byte, 4)
+    _, err = sideChannel.conn.Read(messageLengthBytes)
+    if err != nil {
+        return "", err
+    }
+    messageLength := binary.LittleEndian.Uint32(messageLengthBytes)
+
+    // read response
+    resp := make([]byte, messageLength)
     n, err := sideChannel.conn.Read(resp)
     if err != nil {
         return "", err
