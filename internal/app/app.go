@@ -107,15 +107,16 @@ func Run(cfg config.Config, version string) error {
     for _, test := range tests {
         testID += 1
         test.TestID = testID
-        r := testorchestrator.NewTestOrchestrator(test, replayOrder, cfg.ReplaysDir, servers)
-        err := r.Run(userID, version)
+        r := testorchestrator.NewTestOrchestrator(test, replayOrder, cfg, servers)
+        testResults, err := r.Run(userID, version)
         if err != nil {
             return err
         }
+        for _, result := range testResults {
+            fmt.Printf("Test result for %s:\n\tStatus: %s\n\tOriginal Throughput: %f Mbps\n\tRandom Throughput: %f Mbps\n\tServer: %s\n\tArea Threshold: %f\n\tKS2 P-Value Threshold: %f\n",
+                test.Name, result.Result, result.KS2Result.OriginalAvgThroughput, result.KS2Result.RandomAvgThroughput, result.ServerHostname, result.AreaThreshold, result.KS2PValueThreshold)
+        }
     }
-
-    //get results
-    fmt.Println("RESULTS")
     return nil
 }
 

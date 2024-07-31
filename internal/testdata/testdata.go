@@ -297,3 +297,11 @@ func checkValidTestNames(testNames []string, validTestNames []string) error {
         return fmt.Errorf("The following are invalid test names: %v\n", invalidTestNames)
     }
 }
+
+// The stats that is received from the server for a 2-sample KS test.
+type KS2Result struct {
+    Area0var float64 `json:"Area0Var"`
+    KS2pVal float64 `json:"KS2pVal"`
+    OriginalAvgThroughput float64 `json:"OriginalAvgThroughput"`
+    RandomAvgThroughput float64 `json:"RandomAvgThroughput"`
+}

@@ -9,6 +9,8 @@ import (
     "strconv"
     "strings"
     "time"
+
+    "wehe-cmdline-client/internal/testdata"
 )
 
 const (
@@ -143,12 +145,19 @@ func (sideChannel SideChannel) DeclareReplay(replayID int, replayName string, is
 
 // Sends a request to analyze the test.
 // TODO: finish - rename function and get results back
-func (sideChannel SideChannel) AnalyzeTest() error {
-    _, err := sideChannel.sendAndReceive(analyzeTest, "")
+// Returns the analysis result, or any errors
+func (sideChannel SideChannel) AnalyzeTest() (testdata.KS2Result, error) {
+    message, err := sideChannel.sendAndReceive(analyzeTest, "")
     if err != nil {
-        return err
+        return testdata.KS2Result{}, err
     }
-    return nil
+
+    var ks2Result testdata.KS2Result
+    err = json.Unmarshal([]byte(message), &ks2Result)
+    if err != nil {
+        return testdata.KS2Result{}, err
+    }
+    return ks2Result, nil
 }
 
 func (sideChannel SideChannel) CleanUp() {

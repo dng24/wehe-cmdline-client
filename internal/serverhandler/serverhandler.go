@@ -395,6 +395,7 @@ func (srv *Server) SendThroughputs() (float64, error) {
     if err != nil {
         return -1, err
     }
+    // TODO: server already calculates this in analysis - is this necessary, and do both client and server calc same avg throughput???
     return srv.ThroughputCalculator.GetAverageThroughput(), nil
 }
 
@@ -412,12 +413,14 @@ func (srv *Server) DeclareReplay(replayID int, replayName string, isLastReplay b
     return srv.checkPermissions(permission[0], permission[1])
 }
 
-func (srv *Server) AnalyzeTest() error {
-    err := srv.SideChannel.AnalyzeTest()
+// Makes a request to analyze the test.
+// Returns the analysis result, or any errors
+func (srv *Server) AnalyzeTest() (testdata.KS2Result, error) {
+    ks2Result, err := srv.SideChannel.AnalyzeTest()
     if err != nil {
-        return err
+        return testdata.KS2Result{}, err
     }
-    return nil
+    return ks2Result, nil
 }
 
 func (srv *Server) CleanUp() {
