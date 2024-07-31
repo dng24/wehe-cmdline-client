@@ -133,5 +133,7 @@ func (udpClient UDPClient) RecvPackets(throughputCalculator *analyzer.Analyzer, 
 }
 
 func (udpClient UDPClient) CleanUp() {
-    udpClient.Conn.Close()
+    if udpClient.Conn != nil {
+        udpClient.Conn.Close()
+    }
 }

@@ -265,15 +265,25 @@ func (srv *Server) Ask4Permission() (int, error) {
     if err != nil {
         return -1, err
     }
+    return srv.checkPermissions(permission[0], permission[1])
+}
+
+// Processes the response received from server that determines if replay has permission to run.
+// status: Indicates whether client can run replay or not
+// info: if client can run replay, info contains the number of throughput samples the client should
+//     collect; if client is not allowed to run replay, info contains the reason why replay cannot
+//     be run
+// Returns samples per replay if replay can run, or any errors
+func (srv *Server) checkPermissions(status string, info string) (int, error) {
     var errStr string
-    if permission[0] == ask4PermissionOkStatus {
-        samplesPerReplay, err := strconv.Atoi(permission[1])
+    if status == ask4PermissionOkStatus {
+        samplesPerReplay, err := strconv.Atoi(info)
         if err != nil {
             return -1, err
         }
         return samplesPerReplay, nil
-    } else if permission[0] == ask4PermissionErrorStatus {
-        switch permission[1] {
+    } else if status == ask4PermissionErrorStatus {
+        switch info {
         case ask4PermissionUnknownReplayMsg:
             errStr = "Replay requested does not exist on server."
         case ask4PermissionIPInUseMsg:
@@ -283,10 +293,10 @@ func (srv *Server) Ask4Permission() (int, error) {
         case ask4PermissionResourceRetrievalFailMsg:
             errStr = "Unable to determine server resources. Try again later."
         default:
-            errStr = "Unknown server error: " + permission[1]
+            errStr = "Unknown server error: " + info
         }
     } else {
-        errStr = "Unknown Ask4Permission status code: " + permission[0]
+        errStr = "Unknown Ask4Permission status code: " + status
     }
     return -1, fmt.Errorf(errStr + "\n")
 }
@@ -377,12 +387,37 @@ func (srv *Server) initAnalyzer(replayInfo testdata.ReplayInfo, samplesPerReplay
     srv.ThroughputCalculator = analyzer.NewAnalyzer(replayTime, samplesPerReplay)
 }
 
+// Sends the it took for a replay to run, the throughput samples for that replay, and the time
+// intervals that the throughput samples were taken at to the server.
+// Returns the average throughput of the replay, or any errors
 func (srv *Server) SendThroughputs() (float64, error) {
     _, err := srv.SideChannel.SendThroughputs(srv.ThroughputCalculator.ReplayElapsedTime, srv.ThroughputCalculator.Throughputs, srv.ThroughputCalculator.SampleTimes)
     if err != nil {
         return -1, err
     }
     return srv.ThroughputCalculator.GetAverageThroughput(), nil
+}
+
+// Makes a request to the server to run an additional replay.
+// replayID: the type of replay to run
+// replayName: the name of the replay
+// isLastReplay: true if this is the last replay to run in the test; false otherwise
+// Returns the number of samples that should be collected per replay if client can run replay;
+//     otherwise, returns an error
+func (srv *Server) DeclareReplay(replayID int, replayName string, isLastReplay bool) (int, error) {
+    permission, err := srv.SideChannel.DeclareReplay(replayID, replayName, isLastReplay)
+    if err != nil {
+        return -1, err
+    }
+    return srv.checkPermissions(permission[0], permission[1])
+}
+
+func (srv *Server) AnalyzeTest() error {
+    err := srv.SideChannel.AnalyzeTest()
+    if err != nil {
+        return err
+    }
+    return nil
 }
 
 func (srv *Server) CleanUp() {

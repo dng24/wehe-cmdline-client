@@ -12,7 +12,7 @@ import (
     "unicode"
 
     "wehe-cmdline-client/internal/config"
-    "wehe-cmdline-client/internal/replay"
+    "wehe-cmdline-client/internal/testorchestrator"
     "wehe-cmdline-client/internal/serverhandler"
     "wehe-cmdline-client/internal/testdata"
 )
@@ -107,15 +107,10 @@ func Run(cfg config.Config, version string) error {
     for _, test := range tests {
         testID += 1
         test.TestID = testID
-        for i, replayType := range replayOrder {
-            isLastReplay := i != 0
-            r := replay.NewReplay(test, replayType, cfg.ReplaysDir, servers, isLastReplay)
-            err := r.Run(userID, version)
-            if err != nil {
-                return err
-            }
-            //TODO: remove this when done coding
-            time.Sleep(2 * time.Second)
+        r := testorchestrator.NewTestOrchestrator(test, replayOrder, cfg.ReplaysDir, servers)
+        err := r.Run(userID, version)
+        if err != nil {
+            return err
         }
     }
 
@@ -126,12 +121,12 @@ func Run(cfg config.Config, version string) error {
 
 // Randomly determines whether the original or random replay will be run first.
 // Returns the types of replays in the order that they will be run
-func generateReplayOrder() [2]replay.ReplayType {
+func generateReplayOrder() []testorchestrator.ReplayType {
     rand.Seed(time.Now().UnixNano())
     if (rand.Intn(2) == 0) {
-        return [2]replay.ReplayType{replay.Original, replay.Random}
+        return []testorchestrator.ReplayType{testorchestrator.Original, testorchestrator.Random}
     } else {
-        return [2]replay.ReplayType{replay.Random, replay.Original}
+        return []testorchestrator.ReplayType{testorchestrator.Random, testorchestrator.Original}
     }
 }
 

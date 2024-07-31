@@ -21,6 +21,8 @@ const (
     ask4permission opcode = iota
     mobileStats
     throughputs
+    declareReplay
+    analyzeTest
 )
 
 type responseCode byte // code representing the status of a response back from the server
@@ -118,9 +120,41 @@ func (sideChannel SideChannel) SendThroughputs(replayDuration time.Duration, thr
     return resp, nil
 }
 
+// Send a request to run an additional replay in a test. The request to run the first replay in a
+// test is included in SendID.
+// replayID: the type of replay to run
+// replayName: the name of the replay
+// isLastReplay: true if this is the last replay in the test; false otherwise
+// Returns a slice containing a status code and information; if status is success, then number of
+//     samples per replay is returned as the info; if status is failure, then failure code is
+//     returned as the info; can also return errors
+func (sideChannel SideChannel) DeclareReplay(replayID int, replayName string, isLastReplay bool) ([]string, error) {
+    message := strings.Join([]string{strconv.Itoa(replayID), replayName, strings.Title(strconv.FormatBool(isLastReplay))}, ";")
+    resp, err := sideChannel.sendAndReceive(declareReplay, message)
+    if err != nil {
+        return nil, err
+    }
+    permission := strings.Split(resp, ";")
+    if len(permission) < 2 {
+        return nil, fmt.Errorf("Received improperly formatted permission: %s\n", resp)
+    }
+    return permission, nil
+}
+
+// Sends a request to analyze the test.
+// TODO: finish - rename function and get results back
+func (sideChannel SideChannel) AnalyzeTest() error {
+    _, err := sideChannel.sendAndReceive(analyzeTest, "")
+    if err != nil {
+        return err
+    }
+    return nil
+}
+
 func (sideChannel SideChannel) CleanUp() {
-    fmt.Println("CLEANING UP side channel")
-    sideChannel.conn.Close()
+    if sideChannel.conn != nil {
+        sideChannel.conn.Close()
+    }
 }
 
 // Send and receive bytes to the side channel server.

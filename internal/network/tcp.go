@@ -142,5 +142,7 @@ func (tcpClient TCPClient) RecvPackets(throughputCalculator *analyzer.Analyzer, 
 
 
 func(tcpClient TCPClient) CleanUp() {
-    (*tcpClient.Conn).Close()
+    if *tcpClient.Conn != nil {
+        (*tcpClient.Conn).Close()
+    }
 }
