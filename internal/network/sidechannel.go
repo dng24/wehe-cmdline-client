@@ -2,9 +2,10 @@
 package network
 
 import (
-    "fmt"
     "encoding/binary"
     "encoding/json"
+    "fmt"
+    "io"
     "net"
     "strconv"
     "strings"
@@ -20,7 +21,10 @@ const (
 type opcode byte // request type to the server
 
 const (
-    ask4permission opcode = iota
+    invalid opcode = 255
+    oldDeclareID opcode = 0x30
+    receiveID opcode = iota
+    ask4permission
     mobileStats
     throughputs
     declareReplay
@@ -72,9 +76,10 @@ func (sideChannel SideChannel) SendID(userID string, replayID int, replayName st
 
     message := strings.Join([]string{userID, replayIDString, replayName, numMLabTriesString, testIDString, isLastReplayString, publicIP, clientVersion}, ";")
     fmt.Println(message)
-    messageLength := make([]byte, 4)
-    binary.LittleEndian.PutUint32(messageLength, uint32(len(message)))
-    _, err := sideChannel.conn.Write(messageLength)
+    opcodeAndMessageLength := make([]byte, 4)
+    binary.BigEndian.PutUint32(opcodeAndMessageLength, uint32(len(message)))
+    opcodeAndMessageLength[0] = byte(receiveID)
+    _, err := sideChannel.conn.Write(opcodeAndMessageLength)
     if err != nil {
         return err
     }
@@ -171,35 +176,35 @@ func (sideChannel SideChannel) CleanUp() {
 // message: the data to send to the server
 // Returns the server response or any errors
 func (sideChannel SideChannel) sendAndReceive(op opcode, message string) (string, error) {
-    buffer := []byte{byte(op)}
-    buffer = append(buffer, []byte(message)...)
-    fmt.Println("sending:", buffer)
+    fmt.Println("sending:", message)
 
     // send length of request
-    dataLength := make([]byte, 4)
-    binary.LittleEndian.PutUint32(dataLength, uint32(len(buffer)))
-    _, err := sideChannel.conn.Write(dataLength)
+    // first byte is opcode, last 3 bytes is 24-bit big-endian unsigned message length
+    opcodeAndDataLength := make([]byte, 4)
+    binary.BigEndian.PutUint32(opcodeAndDataLength, uint32(len(message)))
+    opcodeAndDataLength[0] = byte(op)
+    _, err := sideChannel.conn.Write(opcodeAndDataLength)
     if err != nil {
         return "", err
     }
 
     // send request
-    _, err = sideChannel.conn.Write(buffer)
+    _, err = sideChannel.conn.Write([]byte(message))
     if err != nil {
         return "", err
     }
 
     // read length of response
     messageLengthBytes := make([]byte, 4)
-    _, err = sideChannel.conn.Read(messageLengthBytes)
+    _, err = io.ReadFull(sideChannel.conn, messageLengthBytes)
     if err != nil {
         return "", err
     }
-    messageLength := binary.LittleEndian.Uint32(messageLengthBytes)
+    messageLength := binary.BigEndian.Uint32(messageLengthBytes)
 
     // read response
     resp := make([]byte, messageLength)
-    n, err := sideChannel.conn.Read(resp)
+    _, err = io.ReadFull(sideChannel.conn, resp)
     if err != nil {
         return "", err
     }
@@ -207,13 +212,13 @@ func (sideChannel SideChannel) sendAndReceive(op opcode, message string) (string
     responseCode := resp[0]
     fmt.Println("response code:", responseCode)
     if responseCode == byte(okResponse) {
-        fmt.Println("receiving:", string(resp[1:n]))
-        return string(resp[1:n]), nil
+        fmt.Println("receiving:", string(resp[1:]))
+        return string(resp[1:]), nil
     } else if responseCode == byte(errorResponse) {
         return "", fmt.Errorf("Server unable to process request.")
     } else {
         return "", fmt.Errorf("Unknown error.")
     }
-    fmt.Println("receiving:", string(resp[:n]))
-    return string(resp[:n]), nil
+    fmt.Println("receiving:", string(resp))
+    return string(resp), nil
 }

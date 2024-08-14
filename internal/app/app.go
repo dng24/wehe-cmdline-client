@@ -29,6 +29,7 @@ const (
 // Returns any errors
 func Run(cfg config.Config, version string) error {
     //history count
+    // TODO: save user configs when done
     userID, testID := readUserConfig(cfg.UserConfigFile)
     fmt.Println(userID, testID)
 
