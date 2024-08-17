@@ -2,6 +2,7 @@
 package network
 
 import (
+    "crypto/tls"
     "encoding/binary"
     "encoding/json"
     "fmt"
@@ -46,11 +47,12 @@ type SideChannel struct {
 // Creates a new SideChannel struct.
 // id: ID of the SideChannel instance
 // ip: IP of the server to connect to
+// tlsConfig: TLS configuration containing the server cert
 // Returns new SideChannel struct or any errors
-func NewSideChannel(id int, ip string) (SideChannel, error) {
-    conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", ip, sideChannelPort))
+func NewSideChannel(id int, ip string, tlsConfig *tls.Config) (SideChannel, error) {
+    conn, err := tls.Dial("tcp", fmt.Sprintf("%s:%d", ip, sideChannelPort), tlsConfig)
     if err != nil {
-        return SideChannel{}, nil
+        return SideChannel{}, err
     }
     return SideChannel{
         id: id,

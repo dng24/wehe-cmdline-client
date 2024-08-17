@@ -3,6 +3,7 @@ package testorchestrator
 
 import (
     "context"
+    "crypto/tls"
     "fmt"
     "math"
     "path"
@@ -66,15 +67,16 @@ func NewTestOrchestrator(test *testdata.Test, replayTypes []ReplayType, cfg conf
 // Runs a replay.
 // userID: the unique identifier for a user
 // clientVersion: client version of Wehe
+// tlsConfig: TLS configuration containing the server cert
 // Returns any errors
-func (to *TestOrchestrator) Run(userID string, clientVersion string) ([]TestResult, error) {
+func (to *TestOrchestrator) Run(userID string, clientVersion string, tlsConfig *tls.Config) ([]TestResult, error) {
     replayInfo, err := to.getCurrentReplayInfo()
     if err != nil {
         return nil, err
     }
 
     defer to.cleanUp()
-    err = to.connectToSideChannel()
+    err = to.connectToSideChannel(tlsConfig)
     if err != nil {
         return nil, err
     }
@@ -129,10 +131,11 @@ func (to *TestOrchestrator) Run(userID string, clientVersion string) ([]TestResu
 }
 
 // Connect the client to the servers to run test.
+// tlsConfig: TLS configuration containing the server cert
 // Returns any errors
-func (to *TestOrchestrator) connectToSideChannel() error {
+func (to *TestOrchestrator) connectToSideChannel(tlsConfig *tls.Config) error {
     for id, srv := range to.servers {
-        err := srv.ConnectToSideChannel(id)
+        err := srv.ConnectToSideChannel(id, tlsConfig)
         if err != nil {
             return err
         }

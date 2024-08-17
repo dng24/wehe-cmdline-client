@@ -3,6 +3,7 @@ package serverhandler
 
 import (
     "context"
+    "crypto/tls"
     "encoding/json"
     "fmt"
     "io"
@@ -166,9 +167,10 @@ func GetMLabServers() ([]MLabServer, error) {
 
 // Connects to the side channel of the server.
 // id: the ID number to assign the side channel instance
+// tlsConfig: TLS configuration containing the server cert
 // Returns any errors
-func (srv *Server) ConnectToSideChannel(id int) error {
-    sideChannel, err := network.NewSideChannel(id, srv.IP)
+func (srv *Server) ConnectToSideChannel(id int, tlsConfig *tls.Config) error {
+    sideChannel, err := network.NewSideChannel(id, srv.IP, tlsConfig)
     if err != nil {
         return err
     }

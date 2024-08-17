@@ -3,7 +3,10 @@ package app
 
 import (
     "bufio"
+    "crypto/tls"
+    "crypto/x509"
     "fmt"
+    "io/ioutil"
     "math/rand"
     "os"
     "strconv"
@@ -28,7 +31,6 @@ const (
 // version: version number of Wehe
 // Returns any errors
 func Run(cfg config.Config, version string) error {
-    //history count
     // TODO: save user configs when done
     userID, testID := readUserConfig(cfg.UserConfigFile)
     fmt.Println(userID, testID)
@@ -38,7 +40,7 @@ func Run(cfg config.Config, version string) error {
         return err
     }
 
-    //set up servers / certs
+    // set up the servers
     var servers []*serverhandler.Server
     useMLab, err := serverhandler.UseMLab(cfg.ServerDisplay)
     if err != nil {
@@ -99,17 +101,22 @@ func Run(cfg config.Config, version string) error {
         }
         servers = append(servers, srv)
     }
-    //gen certs, maybe can do it outside of loop
 
-    //flip coin
+    // add server cert to the list of trusted CAs
+    tlsConfig, err := addTrustedCACerts(cfg.ServerCertFile)
+    if err != nil {
+        return err
+    }
+
+    // determine the order that the replays will run
     replayOrder := generateReplayOrder()
 
-    //run replays
+    // run the tests
     for _, test := range tests {
         testID += 1
         test.TestID = testID
         r := testorchestrator.NewTestOrchestrator(test, replayOrder, cfg, servers)
-        testResults, err := r.Run(userID, version)
+        testResults, err := r.Run(userID, version, tlsConfig)
         if err != nil {
             return err
         }
@@ -119,6 +126,22 @@ func Run(cfg config.Config, version string) error {
         }
     }
     return nil
+}
+
+// Add the server cert to list of trusted CAs.
+// caCertFilename: file path to the server cert
+// Returns the TLS config that can be used for TLS connections, or any errors
+func addTrustedCACerts(caCertFilename string) (*tls.Config, error) {
+    caCert, err := ioutil.ReadFile(caCertFilename)
+    if err != nil {
+        return nil, err
+    }
+
+    caCertPool := x509.NewCertPool()
+    caCertPool.AppendCertsFromPEM(caCert)
+    return &tls.Config{
+        RootCAs: caCertPool,
+    }, nil
 }
 
 // Randomly determines whether the original or random replay will be run first.
